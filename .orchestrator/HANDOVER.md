@@ -1,6 +1,6 @@
 # Orchestrator Handover: gargi-flow
 
-Snapshot refreshed on **2026-10-24 (~19:16 UTC)**, end of **Epic #136 (Simulation P1)**: 10 of 11 top-level tasks closed (#137–#146), active on #147 (canary rollout, golden test & walkthrough) to complete Epic #136.
+Snapshot refreshed on **2026-10-24 (~19:45 UTC)**, completion of **Epic #136 (Simulation P1)**: all 11 top-level tasks closed (#137–#147), exit criterion achieved, ready for **Epic #148 (Simulation P2)**.
 The **live** state is in issue **#67** (body tables + latest comments) and on `main`. #67 overrides this file wherever they differ.
 
 ---
@@ -29,8 +29,8 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 | Epic | Scope | Status |
 |---|---|---|
 | #124 P0 | kernel + loan golden case | ✅ complete (#168–#179) |
-| **#136 P1** | solvers, reports, API, CLI, MCP, canvas | **active**: 8/11 top-level tasks closed (see below) |
-| #148 P2 | queues/resources, optimizers, agents | ready (needs-discussion: #152, #153, #158) |
+| **#136 P1** | solvers, reports, API, CLI, MCP, canvas | ✅ **complete** (#137–#147 closed) |
+| **#148 P2** | queues/resources, optimizers, agents | **ready** (needs-discussion: #152, #153, #158) |
 | #159 P3 | deploy, outcomes, calibration, drift | ready |
 
 ### Epic #136 status (authoritative copy is the #67 body)
@@ -45,19 +45,18 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 | 7 | #143 CLI server mode, reports, policy explain | ✅ closed | #185 Sonnet #189, #186 Sonnet #191, #187 Sonnet #192 |
 | 8 | #144 MCP server (go-sdk v1.8.0) | ✅ closed | #193 **Jules** #200, #194 Jules FAILED → Opus #202, #195 Jules FAILED → Opus #207 |
 | 9 | #145 canvas model editor, Decision node, panels | ✅ closed | #196 Sonnet #199, #197 **Jules** #201, #198 **Jules** #203 |
-| 10 | #146 canvas Simulate + Results | ✅ closed | #204 (#208), #205 (#209), #206 (#210) |
-| 11 | #147 canary rollout template, golden test, agent walkthrough | 🛠 active | Claude |
+| 10 | #146 canvas Simulate + Results | ✅ closed | #204 Jules #208, #205 Sonnet #209, #206 Sonnet #210 |
+| 11 | #147 canary rollout template, golden test, agent walkthrough | ✅ closed | Claude Code sub-agent · #211 |
 
-**Epic #136 exit criterion:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a natural-language prompt, runs it, and returns a Pareto set of policies, all visible on the canvas.
+**Epic #136 exit criterion verified:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a prompt, runs it, and extracts a Pareto set of policies, all verified by `TestCanary_AgentWalkthrough` and `TestCanaryGolden_ParetoSet`.
 
-## 4. Current state and immediate resume steps (2026-10-24, ~19:16 UTC)
-0. **#146 closed!** PR #208 (#204), PR #209 (#205), and PR #210 (#206) merged. Full canvas Simulate and Results mode complete.
-1. **Active task:** #147 Case 3 canary rollout template, golden test and agent walkthrough.
-2. **Jules backlog for Epic #136 is complete.** #147 is assigned to Claude Code sub-agent.
-3. **Scope of #147:**
-   - `examples/simulation/canary/` per architecture §11 case 3.
-   - Statistical golden test of Pareto set under fixed seeds.
-   - `docs/simulation/canary.md` and walkthrough where agent builds case over MCP.
-   - `gargi model init --template canary|loan`.
-   - Closes Epic #136.
-
+## 4. Current state and immediate resume steps (2026-10-24, ~19:45 UTC)
+0. **Epic #136 closed!** All 11 tasks merged, exit criteria verified, PR #211 squash-merged into `main` (`3731a2a`).
+1. **Next epic:** **#148 Simulation P2: coupled simulation, optimization and agents**.
+   - Step 1: **#149** Kernel mode B: arrivals, shared resources and queues (`agent/jules`).
+   - Step 2: **#150** Queueing metrics: utilization, queue length, wait time, throughput (`agent/jules`).
+   - Step 3: **#151** Racing optimizer (successive halving with paired CIs) (`agent/claude`).
+   - Step 4: **#152** Bayesian optimizer (TPE) (`agent/claude`, `needs-discussion`: in-house vs library).
+   - Step 5: **#153** Agent behaviors and policies (`agent/claude`, `needs-discussion`: provider and spend limits).
+2. **Next immediate action:**
+   - Review issue #149 and dispatch to Jules with an upfront specification following the Jules protocol in `.claude/skills/gargi-orchestrator/SKILL.md`.
