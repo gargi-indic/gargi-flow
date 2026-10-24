@@ -1,0 +1,174 @@
+{
+  "id":  "3d14f24d-7a69-52b4-d0d4-416278abbc57",
+  "world":  "base",
+  "policyId":  "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+  "seed":  "10473796342335261494",
+  "events":  [
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "1",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "screen",
+      "fromStatus":  "NODE_STATUS_PENDING",
+      "toStatus":  "NODE_STATUS_READY"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "2",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "screen",
+      "fromStatus":  "NODE_STATUS_READY",
+      "toStatus":  "NODE_STATUS_RUNNING"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "3",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "screen",
+      "fromStatus":  "NODE_STATUS_RUNNING",
+      "toStatus":  "NODE_STATUS_SUCCEEDED",
+      "payload":  {
+        "choice":  "score"
+      }
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "4",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "ai_score",
+      "fromStatus":  "NODE_STATUS_PENDING",
+      "toStatus":  "NODE_STATUS_READY"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "5",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "ai_score",
+      "fromStatus":  "NODE_STATUS_READY",
+      "toStatus":  "NODE_STATUS_RUNNING"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "6",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "ai_score",
+      "fromStatus":  "NODE_STATUS_RUNNING",
+      "toStatus":  "NODE_STATUS_SUCCEEDED",
+      "payload":  {
+        "band":  "low"
+      }
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "7",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "route",
+      "fromStatus":  "NODE_STATUS_PENDING",
+      "toStatus":  "NODE_STATUS_READY"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "8",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "route",
+      "fromStatus":  "NODE_STATUS_READY",
+      "toStatus":  "NODE_STATUS_RUNNING"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "9",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "route",
+      "fromStatus":  "NODE_STATUS_RUNNING",
+      "toStatus":  "NODE_STATUS_SUCCEEDED",
+      "payload":  {
+        "choice":  "approve"
+      }
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "10",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "approve",
+      "fromStatus":  "NODE_STATUS_PENDING",
+      "toStatus":  "NODE_STATUS_READY"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "11",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "human_review",
+      "fromStatus":  "NODE_STATUS_PENDING",
+      "toStatus":  "NODE_STATUS_SKIPPED"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "12",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "final",
+      "fromStatus":  "NODE_STATUS_PENDING",
+      "toStatus":  "NODE_STATUS_SKIPPED"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "13",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "reject",
+      "fromStatus":  "NODE_STATUS_PENDING",
+      "toStatus":  "NODE_STATUS_SKIPPED"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "14",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "approve",
+      "fromStatus":  "NODE_STATUS_READY",
+      "toStatus":  "NODE_STATUS_RUNNING"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "15",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "node_state_changed",
+      "nodeId":  "approve",
+      "fromStatus":  "NODE_STATUS_RUNNING",
+      "toStatus":  "NODE_STATUS_SUCCEEDED"
+    },
+    {
+      "executionId":  "sim-3d14f24d-7a69-52b4-d0d4-416278abbc57-base-0",
+      "sequence":  "16",
+      "timestamp":  "1970-01-01T00:00:00Z",
+      "eventType":  "graph_completed"
+    }
+  ],
+  "record":  {
+    "objective":  980,
+    "cost":  20,
+    "duration":  "0s",
+    "path":  [
+      "screen",
+      "ai_score",
+      "route",
+      "approve"
+    ],
+    "decisions":  {
+      "route":  "approve",
+      "screen":  "score"
+    },
+    "finalStatus":  "Succeeded"
+  }
+}
