@@ -1,6 +1,6 @@
 # Orchestrator Handover: gargi-flow
 
-Snapshot refreshed on **2026-10-24 (~17:28 UTC)**, mid-**Epic #136 (Simulation P1)**: 9 of 11 top-level tasks closed (#137–#145), #146 at 1/3 merged (#204 closed), #205 in progress on Jules, then #206, and #147.
+Snapshot refreshed on **2026-10-24 (~18:10 UTC)**, mid-**Epic #136 (Simulation P1)**: 9 of 11 top-level tasks closed (#137–#145), #146 at 2/3 merged (#204, #205 closed), #206 in progress on Jules, then #147.
 The **live** state is in issue **#67** (body tables + latest comments) and on `main`. #67 overrides this file wherever they differ.
 
 ---
@@ -45,14 +45,14 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 | 7 | #143 CLI server mode, reports, policy explain | ✅ closed | #185 Sonnet #189, #186 Sonnet #191, #187 Sonnet #192 |
 | 8 | #144 MCP server (go-sdk v1.8.0) | ✅ closed | #193 **Jules** #200, #194 Jules FAILED → Opus #202, #195 Jules FAILED → Opus #207 |
 | 9 | #145 canvas model editor, Decision node, panels | ✅ closed | #196 Sonnet #199, #197 **Jules** #201, #198 **Jules** #203 |
-| 10 | #146 canvas Simulate + Results | 🛠 split | #204 merged (PR #208), #205 in progress on Jules (acceptance) → #206 |
+| 10 | #146 canvas Simulate + Results | 🛠 split | #204 merged (#208), #205 merged (#209), #206 in progress on Jules → #147 |
 | 11 | #147 canary rollout template, golden test, agent walkthrough | ⏳ | depends on #144 and #146; no spec yet |
 
 **Epic #136 exit criterion:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a natural-language prompt, runs it, and returns a Pareto set of policies, all visible on the canvas.
 
-## 4. Current state and immediate resume steps (2026-10-24, ~17:28 UTC)
-0. **#204 merged via PR #208; #146 part 1/3 complete.** `SimulatePanel` with SSE progress tracking and best-per-world summary table merged into `main` at `bc07e35`.
-1. **Active Jules session:** #205 (Results overlay, #146 part 2/3, acceptance) in session `15394334187737751002` (https://jules.google.com/session/15394334187737751002). Started 17:28 UTC.
-2. **Adaptive check-ins on #205:** 5m -> 10m -> 15m. Check plan approval when Jules enters `AWAITING_PLAN_APPROVAL`.
-3. **Next in build order:** #206 (analysis panels, compare, replay, #146 part 3/3), then #147 (canary rollout template & golden test).
+## 4. Current state and immediate resume steps (2026-10-24, ~18:10 UTC)
+0. **#204 and #205 merged; #146 part 2/3 complete.** PR #208 and PR #209 merged; real replay fixture `loan-run-0.json` generated and committed (`84e2163`).
+1. **Active Jules session:** #206 (Analysis panels, compare and replay, #146 part 3/3) in session `77321078494153093` (https://jules.google.com/session/77321078494153093). Started 18:10 UTC.
+2. **Adaptive check-ins on #206:** 5m -> 10m -> 15m. Check plan approval when Jules enters `AWAITING_PLAN_APPROVAL`.
+3. **Next in build order:** closing #146 upon #206 merge, then #147 (canary rollout template & golden test).
 
