@@ -108,6 +108,19 @@ type policyList []sim.Policy
 
 func (l policyList) Policies(*model.CompiledModel) ([]sim.Policy, error) { return l, nil }
 
+// RunBundle runs the given experiment document against an in-memory model bundle.
+func (*Local) RunBundle(ctx context.Context, b sim.ModelBundle, definition []byte, format string, opts RunOptions) (*RunResult, error) {
+	reg, err := jobs.NewRegistry()
+	if err != nil {
+		return nil, &InternalError{Err: err}
+	}
+	exp, err := jobs.CompileExperiment(b, definition, format, reg)
+	if err != nil {
+		return nil, err
+	}
+	return runCompiledExperiment(ctx, exp, opts)
+}
+
 // RunExperiment loads and runs the experiment/v1 document at path. Load,
 // solve, enumeration and run failures are returned unwrapped so that
 // IssuesOf can turn them into validation issues; a registry failure is an
@@ -121,6 +134,10 @@ func (*Local) RunExperiment(ctx context.Context, path string, opts RunOptions) (
 	if err != nil {
 		return nil, err
 	}
+	return runCompiledExperiment(ctx, exp, opts)
+}
+
+func runCompiledExperiment(ctx context.Context, exp *experiment.CompiledExperiment, opts RunOptions) (*RunResult, error) {
 	// Enumerate or solve once; the policies are kept for --emit-best. A
 	// solution (policies: {search: exact}) is passed to Run as is, so the
 	// report carries each world's solution.
@@ -133,6 +150,7 @@ func (*Local) RunExperiment(ctx context.Context, path string, opts RunOptions) (
 		src = sol
 	}
 	var policies []sim.Policy
+	var err error
 	if src != nil {
 		policies, err = src.Policies(exp.Model)
 	} else {

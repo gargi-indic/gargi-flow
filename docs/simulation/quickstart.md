@@ -664,5 +664,6 @@ values.
 
 - [Simulation architecture](ARCHITECTURE.md): the documents, kernel, run
   modes and roadmap.
+- [Model Context Protocol (MCP) server](mcp.md): connect agents to build, repair and run decision models.
 - [Benchmarks](../benchmarks.md#4-simulation-benchmarks): episode and
   experiment throughput.

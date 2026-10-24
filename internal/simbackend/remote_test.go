@@ -201,3 +201,34 @@ func TestRemote_ExplainPolicy(t *testing.T) {
 	_, err = r.ExplainPolicy(context.Background(), "missing:recession-v1.yaml")
 	require.ErrorIs(t, err, simbackend.ErrNotFound)
 }
+
+func TestRemote_RunBundle(t *testing.T) {
+	r := newRemote(t)
+	simDoc, err := os.ReadFile(testdata("sim.yaml"))
+	require.NoError(t, err)
+	graphDoc, err := os.ReadFile(testdata("graph.yaml"))
+	require.NoError(t, err)
+	policy, err := os.ReadFile(testdata("recession-v1.yaml"))
+	require.NoError(t, err)
+	expData, err := os.ReadFile(testdata("experiment.yaml"))
+	require.NoError(t, err)
+
+	b := sim.ModelBundle{
+		ID:       "loan-underwriting",
+		Sim:      simDoc,
+		Graph:    graphDoc,
+		Policies: map[string][]byte{"recession-v1.yaml": policy},
+		Format:   "yaml",
+	}
+
+	res, err := r.RunBundle(context.Background(), b, expData, "yaml", simbackend.RunOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, res.ExperimentID)
+	require.Nil(t, res.Policies)
+	require.Equal(t, "loan-underwriting", res.Report.Model)
+	require.Len(t, res.Report.Worlds, 2)
+	require.Equal(t, sim.WorldID("base"), res.Report.Worlds[0].World)
+	require.InDelta(t, 460.0, res.Report.Worlds[0].Policies[0].Objective.Mean, 1e-9)
+	require.Equal(t, sim.WorldID("recession"), res.Report.Worlds[1].World)
+	require.InDelta(t, 202.525, res.Report.Worlds[1].Policies[0].Objective.Mean, 1e-9)
+}

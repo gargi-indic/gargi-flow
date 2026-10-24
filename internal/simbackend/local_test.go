@@ -134,3 +134,21 @@ func TestLocal_ValidateBundle(t *testing.T) {
 	require.Len(t, issues, 1)
 	require.Equal(t, engine.CodeInvalidFormat, issues[0].Code)
 }
+
+func TestLocal_RunBundle(t *testing.T) {
+	ctx := context.Background()
+	expData, err := os.ReadFile(filepath.Join("testdata", "experiment.yaml"))
+	require.NoError(t, err)
+	b := testBundle(t, "sim.yaml")
+	res, err := NewLocal().RunBundle(ctx, b, expData, "yaml", RunOptions{})
+	require.NoError(t, err)
+	require.Empty(t, res.ExperimentID)
+	require.Len(t, res.Report.Worlds, 2)
+	means := map[sim.WorldID]float64{}
+	for _, w := range res.Report.Worlds {
+		require.NotEmpty(t, w.Policies)
+		means[w.World] = w.Policies[0].Objective.Mean
+	}
+	require.InDelta(t, 460.0, means["base"], 1e-9)
+	require.InDelta(t, 202.525, means["recession"], 1e-9)
+}

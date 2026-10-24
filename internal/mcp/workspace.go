@@ -200,8 +200,9 @@ const modelURIPrefix = "gargi://models/"
 
 // workspaceServer serves the model workspace tools of one Server.
 type workspaceServer struct {
-	backend simbackend.Backend
-	ws      *workspace
+	backend  simbackend.Backend
+	ws       *workspace
+	expStore *experimentsStore
 }
 
 // modelIssue is a validation error returned to the agent, with its hint.

@@ -21,6 +21,9 @@ type Backend interface {
 	// ValidateBundle validates an in-memory model bundle (sim, graph,
 	// policies). Problems come back as sorted issues with a nil error.
 	ValidateBundle(ctx context.Context, b sim.ModelBundle) ([]engine.ValidationIssue, error)
+	// RunBundle runs an experiment/v1 document (definition, in format) against an in-memory model bundle.
+	// The document's model field is ignored in favor of b.
+	RunBundle(ctx context.Context, b sim.ModelBundle, definition []byte, format string, opts RunOptions) (*RunResult, error)
 	// RunExperiment runs the experiment/v1 document at path. A document or
 	// policy problem is returned as an error that IssuesOf turns into
 	// validation issues; an *InternalError marks a failure that is not one.
