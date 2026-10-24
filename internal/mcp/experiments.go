@@ -130,6 +130,9 @@ func (s *workspaceServer) runExperiment(ctx context.Context, _ *mcp.CallToolRequ
 	}
 	for k, v := range docs.policies {
 		vBytes, _ := yaml.Marshal(v)
+		if !strings.HasSuffix(k, ".yaml") {
+			k = k + ".yaml"
+		}
 		b.Policies[k] = vBytes
 	}
 

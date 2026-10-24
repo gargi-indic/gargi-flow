@@ -1,0 +1,33 @@
+apiVersion: graph/v1
+id: canary-rollout
+nodes:
+  - id: deploy_1
+    type: passthrough
+  - id: observe_1
+    type: wait_for_signal
+    config: {signal: canary_1_done}
+  - id: gate_1
+    type: decision
+    config: {options: [promote, rollback], observes: [observe_1.output.error_rate]}
+  - id: deploy_10
+    type: passthrough
+  - id: observe_2
+    type: wait_for_signal
+    config: {signal: canary_2_done}
+  - id: gate_2
+    type: decision
+    config: {options: [promote, rollback], observes: [observe_1.output.error_rate, observe_2.output.error_rate]}
+  - id: deploy_100
+    type: passthrough
+  - id: rollback
+    type: passthrough
+    joinMode: any_of
+edges:
+  - {from: deploy_1, to: observe_1}
+  - {from: observe_1, to: gate_1}
+  - {from: gate_1, to: deploy_10, condition: "upstream.output.choice == 'promote'"}
+  - {from: gate_1, to: rollback, condition: "upstream.output.choice == 'rollback'"}
+  - {from: deploy_10, to: observe_2}
+  - {from: observe_2, to: gate_2}
+  - {from: gate_2, to: deploy_100, condition: "upstream.output.choice == 'promote'"}
+  - {from: gate_2, to: rollback, condition: "upstream.output.choice == 'rollback'"}

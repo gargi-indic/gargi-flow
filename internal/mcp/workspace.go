@@ -328,6 +328,12 @@ func (s *workspaceServer) readModel(_ context.Context, req *mcp.ReadResourceRequ
 
 // loadTemplate decodes the documents of the embedded template name.
 func loadTemplate(name string) (*modelDocs, error) {
+	switch name {
+	case "canary":
+		name = "canary-rollout"
+	case "loan":
+		name = "loan-underwriting"
+	}
 	if name == "" || strings.ContainsAny(name, "/\\.") {
 		return nil, fmt.Errorf("unknown template %q", name)
 	}

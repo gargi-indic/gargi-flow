@@ -664,6 +664,7 @@ values.
 
 - [Simulation architecture](ARCHITECTURE.md): the documents, kernel, run
   modes and roadmap.
+- [Case 3: Progressive delivery / canary rollout](canary.md): sequential observation, speed vs. safety trade-off, and Pareto frontiers.
 - [Model Context Protocol (MCP) server](mcp.md): connect agents to build, repair and run decision models.
 - [Benchmarks](../benchmarks.md#4-simulation-benchmarks): episode and
   experiment throughput.

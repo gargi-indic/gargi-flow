@@ -1,0 +1,9 @@
+apiVersion: experiment/v1
+model: ./sim.yaml
+worlds: [low_risk_service, payments_service]
+policies: {search: grid, policy: ./policies/canary-grid.yaml}
+evaluator: monte_carlo
+runs: 100
+seed: 42
+top: 5
+reports: [regret, "pareto:lead_time:min,bad_user_mins:min"]

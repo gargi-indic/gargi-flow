@@ -1,0 +1,42 @@
+apiVersion: sim/v1
+id: canary-rollout
+graph: ./graph.yaml
+worlds:
+  low_risk_service: {p_bad: 0.05, traffic: 10000, error_cost: 10.0}
+  payments_service: {p_bad: 0.20, traffic: 50000, error_cost: 50.0}
+latents:
+  bad_release: {bernoulli: {p: "world.p_bad"}}
+  uplift: {lognormal: {mu: -2.5, sigma: 0.5}}
+behaviors:
+  deploy_1:
+    cost: 5
+    duration: 1m
+  observe_1:
+    cost: 10
+    duration: 15m
+    output:
+      error_rate: {expr: "latent.bad_release ? latent.uplift : 0.005"}
+  deploy_10:
+    cost: 10
+    duration: 2m
+  observe_2:
+    cost: 20
+    duration: 30m
+    output:
+      error_rate: {expr: "latent.bad_release ? latent.uplift : 0.005"}
+  deploy_100:
+    cost: 20
+    duration: 5m
+  rollback:
+    cost: 50
+    duration: 2m
+metrics:
+  lead_time: "run.duration / 60.0"
+  bad_user_mins: "latent.bad_release ? (nodes.deploy_100.status == 'Succeeded' ? 1000.0 : (nodes.deploy_10.status == 'Succeeded' ? 100.0 : 10.0)) : 0.0"
+  bad_reaches_100: "(latent.bad_release && nodes.deploy_100.status == 'Succeeded') ? 1.0 : 0.0"
+objective:
+  name: total_cost
+  value: "-run.cost - (run.duration / 60.0 * 2.0) - (latent.bad_release ? (nodes.deploy_100.status == 'Succeeded' ? world.traffic * 1.0 * world.error_cost : (nodes.deploy_10.status == 'Succeeded' ? world.traffic * 0.1 * world.error_cost : world.traffic * 0.01 * world.error_cost)) : 0.0)"
+  maximize: mean
+  requirements:
+    safe: "mean(bad_reaches_100) <= 0.05"
