@@ -1,6 +1,6 @@
 # Orchestrator Handover: gargi-flow
 
-Snapshot refreshed on **2026-10-24 (~18:10 UTC)**, mid-**Epic #136 (Simulation P1)**: 9 of 11 top-level tasks closed (#137–#145), #146 at 2/3 merged (#204, #205 closed), #206 in progress on Jules, then #147.
+Snapshot refreshed on **2026-10-24 (~19:16 UTC)**, end of **Epic #136 (Simulation P1)**: 10 of 11 top-level tasks closed (#137–#146), active on #147 (canary rollout, golden test & walkthrough) to complete Epic #136.
 The **live** state is in issue **#67** (body tables + latest comments) and on `main`. #67 overrides this file wherever they differ.
 
 ---
@@ -45,14 +45,19 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 | 7 | #143 CLI server mode, reports, policy explain | ✅ closed | #185 Sonnet #189, #186 Sonnet #191, #187 Sonnet #192 |
 | 8 | #144 MCP server (go-sdk v1.8.0) | ✅ closed | #193 **Jules** #200, #194 Jules FAILED → Opus #202, #195 Jules FAILED → Opus #207 |
 | 9 | #145 canvas model editor, Decision node, panels | ✅ closed | #196 Sonnet #199, #197 **Jules** #201, #198 **Jules** #203 |
-| 10 | #146 canvas Simulate + Results | 🛠 split | #204 merged (#208), #205 merged (#209), #206 in progress on Jules → #147 |
-| 11 | #147 canary rollout template, golden test, agent walkthrough | ⏳ | depends on #144 and #146; no spec yet |
+| 10 | #146 canvas Simulate + Results | ✅ closed | #204 (#208), #205 (#209), #206 (#210) |
+| 11 | #147 canary rollout template, golden test, agent walkthrough | 🛠 active | Claude |
 
 **Epic #136 exit criterion:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a natural-language prompt, runs it, and returns a Pareto set of policies, all visible on the canvas.
 
-## 4. Current state and immediate resume steps (2026-10-24, ~18:10 UTC)
-0. **#204 and #205 merged; #146 part 2/3 complete.** PR #208 and PR #209 merged; real replay fixture `loan-run-0.json` generated and committed (`84e2163`).
-1. **Active Jules session:** #206 (Analysis panels, compare and replay, #146 part 3/3) in session `77321078494153093` (https://jules.google.com/session/77321078494153093). Started 18:10 UTC.
-2. **Adaptive check-ins on #206:** 5m -> 10m -> 15m. Check plan approval when Jules enters `AWAITING_PLAN_APPROVAL`.
-3. **Next in build order:** closing #146 upon #206 merge, then #147 (canary rollout template & golden test).
+## 4. Current state and immediate resume steps (2026-10-24, ~19:16 UTC)
+0. **#146 closed!** PR #208 (#204), PR #209 (#205), and PR #210 (#206) merged. Full canvas Simulate and Results mode complete.
+1. **Active task:** #147 Case 3 canary rollout template, golden test and agent walkthrough.
+2. **Jules backlog for Epic #136 is complete.** #147 is assigned to Claude Code sub-agent.
+3. **Scope of #147:**
+   - `examples/simulation/canary/` per architecture §11 case 3.
+   - Statistical golden test of Pareto set under fixed seeds.
+   - `docs/simulation/canary.md` and walkthrough where agent builds case over MCP.
+   - `gargi model init --template canary|loan`.
+   - Closes Epic #136.
 
