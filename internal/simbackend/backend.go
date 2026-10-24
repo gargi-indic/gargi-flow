@@ -18,6 +18,9 @@ type Backend interface {
 	// sorted issues with a nil error; error is reserved for I/O or internal
 	// failures.
 	ValidateModel(ctx context.Context, path string) ([]engine.ValidationIssue, error)
+	// ValidateBundle validates an in-memory model bundle (sim, graph,
+	// policies). Problems come back as sorted issues with a nil error.
+	ValidateBundle(ctx context.Context, b sim.ModelBundle) ([]engine.ValidationIssue, error)
 	// RunExperiment runs the experiment/v1 document at path. A document or
 	// policy problem is returned as an error that IssuesOf turns into
 	// validation issues; an *InternalError marks a failure that is not one.

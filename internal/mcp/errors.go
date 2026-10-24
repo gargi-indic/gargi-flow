@@ -65,7 +65,7 @@ func toolError(issues []engine.ValidationIssue, hint func(engine.ValidationIssue
 func toolErrorf(code engine.ErrorCode, format string, args ...any) *mcp.CallToolResult {
 	return toolError([]engine.ValidationIssue{
 		{
-			Path:    "/",
+			Path:    engine.PathRoot.String(),
 			Code:    code,
 			Message: fmt.Sprintf(format, args...),
 		},

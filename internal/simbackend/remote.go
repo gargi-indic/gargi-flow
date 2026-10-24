@@ -186,10 +186,28 @@ func (r *Remote) ValidateModel(ctx context.Context, path string) ([]engine.Valid
 		}
 		return nil, err
 	}
-	const p = "/v1/models:validate"
-	data, err := r.do(ctx, http.MethodPost, p, map[string]any{
+	return r.validate(ctx, map[string]any{
 		"sim": docs.sim, "graph": docs.graph, "format": string(docs.format),
 	})
+}
+
+// ValidateBundle validates the in-memory model bundle b on the server
+// (POST /v1/models:validate). An empty b.Format means YAML.
+func (r *Remote) ValidateBundle(ctx context.Context, b sim.ModelBundle) ([]engine.ValidationIssue, error) {
+	policies := make(map[string]string, len(b.Policies))
+	for k, v := range b.Policies {
+		policies[k] = string(v)
+	}
+	return r.validate(ctx, map[string]any{
+		"sim": string(b.Sim), "graph": string(b.Graph), "policies": policies, "format": b.Format,
+	})
+}
+
+// validate posts body to /v1/models:validate and returns the sorted issues
+// of the response.
+func (r *Remote) validate(ctx context.Context, body map[string]any) ([]engine.ValidationIssue, error) {
+	const p = "/v1/models:validate"
+	data, err := r.do(ctx, http.MethodPost, p, body)
 	if err != nil {
 		return nil, err
 	}

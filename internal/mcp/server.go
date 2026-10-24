@@ -13,7 +13,9 @@ import (
 
 // Options configures the mcp server.
 type Options struct {
+	// Backend validates workspace models; nil means simbackend.NewLocal().
 	Backend simbackend.Backend
+	// Version is the server version reported to clients; "" means "dev".
 	Version string
 }
 
@@ -22,10 +24,14 @@ type GetSchemaInput struct {
 	Kind string `json:"kind"`
 }
 
-// NewServer returns an *mcp.Server (go-sdk) named "gargi" with this part's tools and resources registered.
+// NewServer returns an *mcp.Server (go-sdk) named "gargi" with this part's
+// tools and resources registered. Each server has its own model workspace.
 func NewServer(opts Options) *mcp.Server {
 	if opts.Version == "" {
 		opts.Version = "dev"
+	}
+	if opts.Backend == nil {
+		opts.Backend = simbackend.NewLocal()
 	}
 
 	server := mcp.NewServer(&mcp.Implementation{
@@ -73,6 +79,10 @@ func NewServer(opts Options) *mcp.Server {
 			},
 		}, nil, nil
 	})
+
+	// Register the model workspace tools and resource.
+	ws := &workspaceServer{backend: opts.Backend, ws: newWorkspace()}
+	ws.register(server)
 
 	// Register concrete schemas
 	for _, kind := range []string{"sim", "graph", "policy", "experiment"} {
@@ -143,4 +153,45 @@ func NewServer(opts Options) *mcp.Server {
 		}
 	}
 	return server
+}
+
+// CreateModelInput is the input of the create_model tool.
+type CreateModelInput struct {
+	ID       string `json:"id" jsonschema:"model id, matching ^[a-z][a-z0-9_-]{0,62}$"`
+	Template string `json:"template" jsonschema:"template to start from: empty or loan-underwriting"`
+}
+
+// PatchModelInput is the input of the patch_model tool.
+type PatchModelInput struct {
+	ID  string           `json:"id" jsonschema:"model id"`
+	Ops []map[string]any `json:"ops" jsonschema:"operations applied in order, all or nothing; the op field selects one of: set_world_param{world,param,value}, remove_world{world}, set_latent{name,spec}, remove_latent{name}, set_behavior{node,spec}, remove_behavior{node}, set_objective{spec}, add_node{id,type,config?,joinMode?}, remove_node{id}, add_edge{from,to,condition?}, remove_edge{from,to}, set_decision{node,options,observes}, set_policy{name,document}, remove_policy{name}"`
+}
+
+// ValidateModelInput is the input of the validate_model tool.
+type ValidateModelInput struct {
+	ID string `json:"id" jsonschema:"model id"`
+}
+
+// register adds the model workspace tools (create_model, patch_model,
+// validate_model) and the gargi://models/{id} resource to server.
+func (s *workspaceServer) register(server *mcp.Server) {
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "create_model",
+		Description: "Creates a model in the workspace from a template (empty or loan-underwriting). Returns {id, files}.",
+	}, s.createModel)
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "patch_model",
+		Description: "Applies typed operations to a workspace model, all or nothing, then validates it. " +
+			"Returns {applied, errors: [{path, code, message, hint}]}; validation errors are repaired with further patches.",
+	}, s.patchModel)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "validate_model",
+		Description: "Validates a workspace model. Returns {errors: [{path, code, message, hint}]}.",
+	}, s.validateModel)
+	server.AddResourceTemplate(&mcp.ResourceTemplate{
+		URITemplate: modelURIPrefix + "{id}",
+		Name:        "Workspace model",
+		Description: `The rendered documents of a workspace model: {"sim.yaml": ..., "graph.yaml": ..., "policies": {"<name>.yaml": ...}}`,
+		MIMEType:    "application/json",
+	}, s.readModel)
 }

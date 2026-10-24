@@ -97,3 +97,40 @@ func TestExplainPolicy(t *testing.T) {
 	_, err = NewLocal().ExplainPolicy(context.Background(), filepath.Join(dir, "missing.yaml"))
 	require.Error(t, err)
 }
+
+// testBundle returns the testdata loan bundle with the given sim document.
+func testBundle(t *testing.T, simFile string) sim.ModelBundle {
+	t.Helper()
+	simDoc, err := os.ReadFile(filepath.Join("testdata", simFile))
+	require.NoError(t, err)
+	graphDoc, err := os.ReadFile(filepath.Join("testdata", "graph.yaml"))
+	require.NoError(t, err)
+	policy, err := os.ReadFile(filepath.Join("testdata", "recession-v1.yaml"))
+	require.NoError(t, err)
+	return sim.ModelBundle{
+		ID: "loan-underwriting", Sim: simDoc, Graph: graphDoc,
+		Policies: map[string][]byte{"recession-v1.yaml": policy}, Format: "yaml",
+	}
+}
+
+func TestLocal_ValidateBundle(t *testing.T) {
+	ctx := context.Background()
+	issues, err := NewLocal().ValidateBundle(ctx, testBundle(t, "sim.yaml"))
+	require.NoError(t, err)
+	require.Empty(t, issues)
+
+	issues, err = NewLocal().ValidateBundle(ctx, testBundle(t, "invalid-sim.yaml"))
+	require.NoError(t, err)
+	require.NotEmpty(t, issues)
+	require.Equal(t, "$.behaviors.ghost_node", issues[0].Path)
+	for i := 1; i < len(issues); i++ {
+		require.LessOrEqual(t, issues[i-1].Path, issues[i].Path, "issues are sorted")
+	}
+
+	b := testBundle(t, "sim.yaml")
+	b.Policies = map[string][]byte{"bad.txt": []byte("x")}
+	issues, err = NewLocal().ValidateBundle(ctx, b)
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	require.Equal(t, engine.CodeInvalidFormat, issues[0].Code)
+}

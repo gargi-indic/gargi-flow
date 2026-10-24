@@ -12,6 +12,7 @@ import (
 	"github.com/gargi-indic/gargi-flow/internal/nodes"
 	"github.com/gargi-indic/gargi-flow/internal/sim/experiment"
 	"github.com/gargi-indic/gargi-flow/internal/sim/explain"
+	"github.com/gargi-indic/gargi-flow/internal/sim/jobs"
 	"github.com/gargi-indic/gargi-flow/internal/sim/model"
 	"github.com/gargi-indic/gargi-flow/pkg/engine"
 	"github.com/gargi-indic/gargi-flow/pkg/sim"
@@ -82,6 +83,20 @@ func (*Local) ValidateModel(_ context.Context, path string) ([]engine.Validation
 		return nil, err
 	}
 	if _, errs := model.Compile(def, filepath.Dir(path), reg); errs.Len() > 0 {
+		return IssuesOf(errs, engine.CodeInvalidValue), nil
+	}
+	return nil, nil
+}
+
+// ValidateBundle validates the in-memory model bundle b the way the gargi
+// server does (jobs.ValidateModel) and returns its sorted validation issues
+// (none when the bundle is valid).
+func (*Local) ValidateBundle(_ context.Context, b sim.ModelBundle) ([]engine.ValidationIssue, error) {
+	reg, err := jobs.NewRegistry()
+	if err != nil {
+		return nil, &InternalError{Err: err}
+	}
+	if _, errs := jobs.ValidateModel(b, reg); errs.Len() > 0 {
 		return IssuesOf(errs, engine.CodeInvalidValue), nil
 	}
 	return nil, nil
