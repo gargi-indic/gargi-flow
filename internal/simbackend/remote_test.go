@@ -134,6 +134,41 @@ func TestRemote_ValidateModel(t *testing.T) {
 	}
 }
 
+func TestRemote_ValidateBundle(t *testing.T) {
+	r := newRemote(t)
+	bundle := func(simFile string) sim.ModelBundle {
+		simDoc, err := os.ReadFile(testdata(simFile))
+		require.NoError(t, err)
+		graphDoc, err := os.ReadFile(testdata("graph.yaml"))
+		require.NoError(t, err)
+		policy, err := os.ReadFile(testdata("recession-v1.yaml"))
+		require.NoError(t, err)
+		return sim.ModelBundle{
+			Sim: simDoc, Graph: graphDoc,
+			Policies: map[string][]byte{"recession-v1.yaml": policy}, Format: "yaml",
+		}
+	}
+	issues, err := r.ValidateBundle(context.Background(), bundle("sim.yaml"))
+	require.NoError(t, err)
+	require.Empty(t, issues)
+
+	issues, err = r.ValidateBundle(context.Background(), bundle("invalid-sim.yaml"))
+	require.NoError(t, err)
+	require.NotEmpty(t, issues)
+	require.Equal(t, "$.behaviors.ghost_node", issues[0].Path)
+	for i := 1; i < len(issues); i++ {
+		require.LessOrEqual(t, issues[i-1].Path, issues[i].Path, "issues are sorted")
+	}
+
+	// A policy problem is reported too, so the policies reach the server.
+	b := bundle("sim.yaml")
+	b.Policies = map[string][]byte{"bad.txt": []byte("x")}
+	issues, err = r.ValidateBundle(context.Background(), b)
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	require.Equal(t, "$.policies['bad.txt']", issues[0].Path)
+}
+
 func TestRemote_ReportNotFound(t *testing.T) {
 	r := newRemote(t)
 	_, err := r.Report(context.Background(), "missing", "summary")
