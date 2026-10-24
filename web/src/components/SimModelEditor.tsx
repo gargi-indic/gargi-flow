@@ -9,6 +9,9 @@ import WorldsPanel from './WorldsPanel';
 import LatentsPanel from './LatentsPanel';
 import ObjectivePanel from './ObjectivePanel';
 import { SimulatePanel } from './SimulatePanel';
+import ResultsBar from './ResultsBar';
+import { choicesByDecision, edgeMass } from '../sim/results';
+import type { SimulationReport } from '../sim/results';
 
 type DocName = keyof SimDocs;
 
@@ -31,7 +34,8 @@ export default function SimModelEditor({ docs, onChange }: Props) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [newDecisionId, setNewDecisionId] = useState('');
   const [panelsCollapsed, setPanelsCollapsed] = useState(false);
-  const [, setSummaryJson] = useState<unknown>(null);
+  const [summaryJson, setSummaryJson] = useState<SimulationReport | null>(null);
+  const [selectedWorld, setSelectedWorld] = useState<string>('base');
   const [, setExperimentId] = useState<string>('');
 
   const handleValidate = async () => {
@@ -180,12 +184,29 @@ export default function SimModelEditor({ docs, onChange }: Props) {
         )}
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {summaryJson && (
+            <ResultsBar 
+              summary={summaryJson}
+              world={selectedWorld}
+              onWorldChange={setSelectedWorld}
+            />
+          )}
           <div style={{ flex: 1, display: 'flex', borderBottom: '1px solid #ccc' }}>
             {active === 'experiment' ? (
               <SimulatePanel
                 simYaml={docs.sim}
                 graphYaml={docs.graph}
-                setSummaryJson={setSummaryJson}
+                setSummaryJson={(data) => {
+                  const report = data as SimulationReport;
+                  setSummaryJson(report);
+                  if (report && report.reports && report.reports.policyTree && report.reports.policyTree.length > 0) {
+                    const firstWorld = report.reports.policyTree[0].world;
+                    setSelectedWorld((prev) => {
+                      if (report.reports?.policyTree?.some(t => t.world === prev)) return prev;
+                      return firstWorld;
+                    });
+                  }
+                }}
                 setExperimentId={setExperimentId}
               />
             ) : (
@@ -206,6 +227,10 @@ export default function SimModelEditor({ docs, onChange }: Props) {
                 edges={parsedGraph.edges}
                 nodeErrors={nodeErrors}
                 onNodeClick={setSelectedNodeId}
+                results={summaryJson ? {
+                  choices: choicesByDecision(summaryJson.reports?.policyTree, selectedWorld),
+                  edgeMass: edgeMass(summaryJson.reports?.pathHeatmap, selectedWorld),
+                } : undefined}
               />
             )}
             {parsedGraph instanceof Error && (

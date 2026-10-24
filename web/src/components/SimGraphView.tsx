@@ -8,10 +8,16 @@ const nodeWidth = 150;
 const nodeHeight = 60;
 const direction = 'TB';
 
+type SimGraphResults = {
+  choices?: Record<string, { infoSet: string; choice: string; reachProbability: number }[]>;
+  edgeMass?: Record<string, number>;
+};
+
 type PlainNodeData = {
   id: string;
   type: string;
   errors?: string[];
+  results?: SimGraphResults;
 };
 
 const PlainNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
@@ -64,6 +70,7 @@ const PlainNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
 
 const DecisionNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
   const hasErrors = data.errors && data.errors.length > 0;
+  const decisionChoices = data.results?.choices?.[data.id];
   return (
     <div
       data-testid={`sim-node-${data.id}`}
@@ -89,8 +96,17 @@ const DecisionNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
         }}
       />
-      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', maxWidth: '80%' }}>
+      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', maxWidth: '90%' }}>
         <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{data.id}</div>
+        {decisionChoices && decisionChoices.length > 0 && (
+          <div style={{ marginTop: '8px', fontSize: '10px', textAlign: 'left', background: 'rgba(255,255,255,0.8)', padding: '2px', borderRadius: '4px' }}>
+            {decisionChoices.map((c: { infoSet: string; choice: string }, i: number) => (
+              <div key={i} data-testid={`result-choice-${data.id}-${c.infoSet}`}>
+                {c.infoSet} → {c.choice}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <Handle type="target" position={Position.Top} style={{ zIndex: 2 }} />
       <Handle type="source" position={Position.Bottom} style={{ zIndex: 2 }} />
@@ -133,9 +149,11 @@ interface SimGraphViewProps {
   edges: GraphEdge[];
   nodeErrors: Record<string, string[]>;
   onNodeClick: (nodeId: string) => void;
+  results?: SimGraphResults;
 }
 
-export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick }: SimGraphViewProps) {
+export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick, results }: SimGraphViewProps) {
+
   const { flowNodes, flowEdges } = useMemo(() => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -145,15 +163,31 @@ export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick }: 
       id: n.id,
       type: n.type === 'decision' ? 'decision' : 'plain',
       position: { x: 0, y: 0 },
-      data: { id: n.id, type: n.type, errors: nodeErrors[n.id] || [] },
+      data: { id: n.id, type: n.type, errors: nodeErrors[n.id] || [], results },
     }));
 
-    const rfEdges: ReactFlowEdge[] = edges.map((e, i) => ({
-      id: `e${i}-${e.from}-${e.to}`,
-      source: e.from,
-      target: e.to,
-      label: e.condition,
-    }));
+    const rfEdges: ReactFlowEdge[] = edges.map((e, i) => {
+      const edgeKey = `${e.from}->${e.to}`;
+      let style: React.CSSProperties | undefined = undefined;
+      
+      if (results?.edgeMass) {
+        const mass = results.edgeMass[edgeKey] || 0;
+        style = {
+          strokeWidth: 1 + 6 * mass,
+          opacity: mass === 0 ? 0.3 : 1,
+          strokeDasharray: mass === 0 ? '5,5' : 'none',
+        };
+      }
+      
+      return {
+        id: `e${i}-${e.from}-${e.to}`,
+        source: e.from,
+        target: e.to,
+        label: e.condition,
+        style,
+        data: results?.edgeMass ? { mass: results.edgeMass[edgeKey] || 0 } : undefined,
+      };
+    });
 
     rfNodes.forEach((node) => {
       dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
@@ -179,7 +213,7 @@ export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick }: 
     });
 
     return { flowNodes: layoutedNodes, flowEdges: rfEdges };
-  }, [nodes, edges, nodeErrors]);
+  }, [nodes, edges, nodeErrors, results]);
 
   return (
     <div style={{ flex: 1, width: '100%', height: '100%', background: '#fafafa' }}>
