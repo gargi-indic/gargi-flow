@@ -700,49 +700,7 @@ func bindExperiment(tree any) (*Experiment, error) {
 
 	if policies, ok := m["policies"]; ok {
 		if pm, ok := policies.(map[string]any); ok {
-			if s, ok := pm["search"].(string); ok {
-				exp.Policies.Search = s
-			}
-			if files, ok := pm["files"]; ok {
-				if arr, ok := files.([]any); ok {
-					for i, v := range arr {
-						if s, ok := v.(string); ok {
-							exp.Policies.Files = append(exp.Policies.Files, s)
-						} else {
-							errs.Add(fmt.Sprintf("$.policies.files[%d]", i), engine.CodeInvalidType, "expected string")
-						}
-					}
-				} else {
-					errs.Add("$.policies.files", engine.CodeInvalidType, "expected array")
-				}
-			}
-			if v, ok := pm["policy"]; ok {
-				if s, ok := v.(string); ok {
-					exp.Policies.Policy = s
-				} else {
-					errs.Add("$.policies.policy", engine.CodeInvalidType, "expected string")
-				}
-			}
-			if v, ok := pm["samples"]; ok {
-				if c, ok := getInt(v); ok {
-					exp.Policies.Samples = c
-				} else {
-					errs.Add("$.policies.samples", engine.CodeInvalidType, "expected integer")
-				}
-			}
-			if v, ok := pm["seed"]; ok {
-				c, ok := getInt(v)
-				switch {
-				case !ok:
-					errs.Add("$.policies.seed", engine.CodeInvalidType, "expected integer")
-				case c < 0:
-					errs.Add("$.policies.seed", engine.CodeInvalidValue, "seed must be >= 0")
-				default:
-					seed := uint64(c)
-					exp.Policies.Seed = &seed
-				}
-			}
-			checkUnknownFields(pm, []string{"search", "files", "policy", "samples", "seed"}, "$.policies", errs)
+			bindPolicies(pm, &exp.Policies, "$.policies", errs)
 		} else {
 			errs.Add("$.policies", engine.CodeInvalidType, "expected object")
 		}
@@ -901,4 +859,89 @@ func getFloat(v any) (float64, bool) {
 		return float64(val), true
 	}
 	return 0, false
+}
+
+func bindPolicies(pm map[string]any, p *Policies, path string, errs *engine.ValidationErrors) {
+	if s, ok := pm["search"].(string); ok {
+		p.Search = s
+	} else if v, ok := pm["search"]; ok && v != nil {
+		errs.Add(path+".search", engine.CodeInvalidType, "expected string")
+	}
+	if files, ok := pm["files"]; ok {
+		if arr, ok := files.([]any); ok {
+			for i, v := range arr {
+				if s, ok := v.(string); ok {
+					p.Files = append(p.Files, s)
+				} else {
+					errs.Add(fmt.Sprintf("%s.files[%d]", path, i), engine.CodeInvalidType, "expected string")
+				}
+			}
+		} else {
+			errs.Add(path+".files", engine.CodeInvalidType, "expected array")
+		}
+	}
+	if v, ok := pm["policy"]; ok {
+		if s, ok := v.(string); ok {
+			p.Policy = s
+		} else {
+			errs.Add(path+".policy", engine.CodeInvalidType, "expected string")
+		}
+	}
+	if v, ok := pm["samples"]; ok {
+		if c, ok := getInt(v); ok {
+			p.Samples = c
+		} else {
+			errs.Add(path+".samples", engine.CodeInvalidType, "expected integer")
+		}
+	}
+	if v, ok := pm["seed"]; ok {
+		c, ok := getInt(v)
+		switch {
+		case !ok:
+			errs.Add(path+".seed", engine.CodeInvalidType, "expected integer")
+		case c < 0:
+			errs.Add(path+".seed", engine.CodeInvalidValue, "seed must be >= 0")
+		default:
+			seed := uint64(c)
+			p.Seed = &seed
+		}
+	}
+	if v, ok := pm["min_runs"]; ok {
+		if c, ok := getInt(v); ok {
+			p.MinRuns = c
+		} else {
+			errs.Add(path+".min_runs", engine.CodeInvalidType, "expected integer")
+		}
+	}
+	if v, ok := pm["max_runs"]; ok {
+		if c, ok := getInt(v); ok {
+			p.MaxRuns = c
+		} else {
+			errs.Add(path+".max_runs", engine.CodeInvalidType, "expected integer")
+		}
+	}
+	if v, ok := pm["factor"]; ok {
+		if f, ok := getFloat(v); ok {
+			p.Factor = f
+		} else {
+			errs.Add(path+".factor", engine.CodeInvalidType, "expected number")
+		}
+	}
+	if v, ok := pm["alpha"]; ok {
+		if f, ok := getFloat(v); ok {
+			p.Alpha = f
+		} else {
+			errs.Add(path+".alpha", engine.CodeInvalidType, "expected number")
+		}
+	}
+	if v, ok := pm["candidates"]; ok {
+		if cm, ok := v.(map[string]any); ok {
+			p.Candidates = &Policies{}
+			bindPolicies(cm, p.Candidates, path+".candidates", errs)
+			checkUnknownFields(cm, []string{"search", "files", "policy", "samples", "seed"}, path+".candidates", errs)
+		} else {
+			errs.Add(path+".candidates", engine.CodeInvalidType, "expected object")
+		}
+	}
+	checkUnknownFields(pm, []string{"search", "files", "policy", "samples", "seed", "min_runs", "max_runs", "factor", "alpha", "candidates"}, path, errs)
 }

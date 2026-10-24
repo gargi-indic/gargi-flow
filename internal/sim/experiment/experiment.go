@@ -218,8 +218,12 @@ func compileFrom(def *model.Experiment, src docSource, baseDir string, reg *engi
 	if len(exp.Worlds) == 0 && errs.Len() == 0 {
 		errs.Add(engine.PathRoot.Field("worlds").String(), engine.CodeMissingRequired, "the experiment has no worlds")
 	}
-	if def.Policies.Policy != "" {
-		exp.Policy = compilePolicyFile(src, baseDir, def.Policies.Policy, m, errs)
+	policyFile := def.Policies.Policy
+	if policyFile == "" && def.Policies.Candidates != nil {
+		policyFile = def.Policies.Candidates.Policy
+	}
+	if policyFile != "" {
+		exp.Policy = compilePolicyFile(src, baseDir, policyFile, m, errs)
 	}
 	validateReports(exp, errs)
 	if errs.Len() > 0 {
