@@ -5,6 +5,8 @@ type Sim struct {
 	APIVersion string                    `json:"apiVersion"`
 	ID         string                    `json:"id"`
 	Graph      string                    `json:"graph"`
+	Arrivals   *ArrivalsSpec             `json:"arrivals,omitempty"`
+	Horizon    string                    `json:"horizon,omitempty"`
 	Worlds     map[string]map[string]any `json:"worlds"`
 	Latents    map[string]ValueSpec      `json:"latents,omitempty"`
 	Behaviors  map[string]Behavior       `json:"behaviors,omitempty"`
@@ -50,6 +52,8 @@ type Objective struct {
 type Behavior struct {
 	Cost     any                  `json:"cost,omitempty"`     // number or string (CEL)
 	Duration any                  `json:"duration,omitempty"` // string ("48h") or ValueSpec
+	Resource string               `json:"resource,omitempty"`
+	Patience any                  `json:"patience,omitempty"`
 	Abandon  *Abandon             `json:"abandon,omitempty"`
 	Fail     *Fail                `json:"fail,omitempty"`
 	Output   map[string]ValueSpec `json:"output,omitempty"`
@@ -68,15 +72,16 @@ type Fail struct {
 
 // ValueSpec exactly one of the fields should be set.
 type ValueSpec struct {
-	Fixed      any            `json:"fixed,omitempty"` // number or string
-	Choice     map[string]any `json:"choice,omitempty"`
-	Bernoulli  *Bernoulli     `json:"bernoulli,omitempty"`
-	Normal     *Normal        `json:"normal,omitempty"`
-	Lognormal  *Lognormal     `json:"lognormal,omitempty"`
-	Uniform    *Uniform       `json:"uniform,omitempty"`
-	Triangular *Triangular    `json:"triangular,omitempty"`
-	Empirical  []float64      `json:"empirical,omitempty"`
-	Expr       string         `json:"expr,omitempty"`
+	Fixed       any            `json:"fixed,omitempty"` // number or string
+	Choice      map[string]any `json:"choice,omitempty"`
+	Bernoulli   *Bernoulli     `json:"bernoulli,omitempty"`
+	Normal      *Normal        `json:"normal,omitempty"`
+	Lognormal   *Lognormal     `json:"lognormal,omitempty"`
+	Uniform     *Uniform       `json:"uniform,omitempty"`
+	Triangular  *Triangular    `json:"triangular,omitempty"`
+	Exponential *Exponential   `json:"exponential,omitempty"`
+	Empirical   []float64      `json:"empirical,omitempty"`
+	Expr        string         `json:"expr,omitempty"`
 }
 
 // Bernoulli represents a Bernoulli distribution.
@@ -107,6 +112,11 @@ type Triangular struct {
 	Min  any `json:"min"`
 	Mode any `json:"mode"`
 	Max  any `json:"max"`
+}
+
+// Exponential represents an Exponential distribution.
+type Exponential struct {
+	Rate any `json:"rate"`
 }
 
 // Policy represents a policy definition.
@@ -219,4 +229,22 @@ type Policies struct {
 	// Seed seeds random search's draws; nil selects the experiment seed. It
 	// is only allowed with random search.
 	Seed *uint64 `json:"seed,omitempty"`
+}
+
+// ArrivalsSpec specifies the arrival process for Mode B simulation.
+type ArrivalsSpec struct {
+	Poisson   *PoissonArrivals `json:"poisson,omitempty"`
+	Schedule  []ScheduleWindow `json:"schedule,omitempty"`
+	Empirical []float64        `json:"empirical,omitempty"`
+}
+
+// PoissonArrivals defines a Poisson arrival process.
+type PoissonArrivals struct {
+	Rate any `json:"rate"` // number or string (CEL)
+}
+
+// ScheduleWindow defines an arrival window with a constant rate.
+type ScheduleWindow struct {
+	Duration string `json:"duration"` // string ("48h")
+	Rate     any    `json:"rate"`     // number or string (CEL)
 }

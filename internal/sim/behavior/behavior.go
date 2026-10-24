@@ -215,6 +215,15 @@ func sampleValue(cv *model.CompiledValue, stream string, vars map[string]any, s 
 			Kind:   sim.DistKindTriangular,
 			Params: map[string]float64{"min": minVal, "mode": mode, "max": maxVal},
 		})
+	case model.KindExponential:
+		rate, err := evalParam(getParam(cv, model.ParamRate), vars)
+		if err != nil {
+			return nil, err
+		}
+		return s.Float(stream, sim.Distribution{
+			Kind:   sim.DistKindExponential,
+			Params: map[string]float64{"rate": rate},
+		})
 	case model.KindEmpirical:
 		return s.Float(stream, sim.Distribution{
 			Kind:   sim.DistKindEmpirical,

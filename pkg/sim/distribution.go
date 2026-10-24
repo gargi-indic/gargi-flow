@@ -16,6 +16,8 @@ const (
 	DistKindUniform DistKind = "uniform"
 	// DistKindTriangular represents a triangular distribution parameterized by "min", "mode", and "max".
 	DistKindTriangular DistKind = "triangular"
+	// DistKindExponential represents an exponential distribution parameterized by "rate".
+	DistKindExponential DistKind = "exponential"
 	// DistKindEmpirical represents an empirical distribution sampled from Values.
 	DistKindEmpirical DistKind = "empirical"
 )
@@ -85,6 +87,13 @@ func (d Distribution) Validate() error {
 		}
 		if ok2 && ok3 && mode > maxVal {
 			errs.Add(engine.Path("max").String(), engine.CodeInvalidValue, "mode must be less than or equal to max")
+		}
+	case DistKindExponential:
+		rate, ok := d.Params["rate"]
+		if !ok {
+			errs.Add(engine.Path("rate").String(), engine.CodeInvalidValue, "missing rate parameter")
+		} else if rate <= 0 {
+			errs.Add(engine.Path("rate").String(), engine.CodeInvalidValue, "rate must be greater than 0")
 		}
 	case DistKindEmpirical:
 		if len(d.Values) == 0 {

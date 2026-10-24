@@ -102,6 +102,8 @@ func (s *monteCarloSampler) Float(stream string, d sim.Distribution) (float64, e
 			return minVal + math.Sqrt(u*(maxVal-minVal)*(mode-minVal)), nil
 		}
 		return maxVal - math.Sqrt((1-u)*(maxVal-minVal)*(maxVal-mode)), nil
+	case sim.DistKindExponential:
+		return rng.ExpFloat64() / d.Params["rate"], nil
 	case sim.DistKindEmpirical:
 		idx := rng.IntN(len(d.Values))
 		return d.Values[idx], nil

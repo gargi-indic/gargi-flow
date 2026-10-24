@@ -25,4 +25,6 @@ const (
 	// CodeParamOutOfRange reports a param value outside the param's
 	// [min, max] range or not one of its values.
 	CodeParamOutOfRange engine.ErrorCode = "param_out_of_range"
+	// CodeUnresolvedReference reports a reference to an unknown entity.
+	CodeUnresolvedReference engine.ErrorCode = "unresolved_reference"
 )

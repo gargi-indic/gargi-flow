@@ -27,8 +27,12 @@ func bindSim(tree any) (*Sim, error) {
 	if metrics, ok := m["metrics"]; ok {
 		sim.Metrics = bindStringMap(metrics, "$.metrics", errs)
 	}
+	if h, ok := m["horizon"].(string); ok {
+		sim.Horizon = h
+	}
+	bindArrivals(m["arrivals"], "$.arrivals", &sim, errs)
 
-	checkUnknownFields(m, []string{"apiVersion", "id", "graph", "worlds", "latents", "behaviors", "resources", "objective", "metrics"}, "$", errs)
+	checkUnknownFields(m, []string{"apiVersion", "id", "graph", "worlds", "latents", "behaviors", "resources", "objective", "metrics", "arrivals", "horizon"}, "$", errs)
 
 	if errs.Len() > 0 {
 		return &sim, errs
@@ -158,9 +162,81 @@ func bindBehaviors(val any, path string, sim *Sim, errs *engine.ValidationErrors
 				errs.Add(p+".output", engine.CodeInvalidType, "expected object")
 			}
 		}
-		checkUnknownFields(bm, []string{"cost", "duration", "abandon", "fail", "output"}, p, errs)
+		if res, ok := bm["resource"]; ok {
+			if s, ok := res.(string); ok {
+				b.Resource = s
+			} else {
+				errs.Add(p+".resource", engine.CodeInvalidType, "expected string")
+			}
+		}
+		if pat, ok := bm["patience"]; ok {
+			if isNumberOrCEL(pat) {
+				b.Patience = pat
+			} else {
+				errs.Add(p+".patience", engine.CodeInvalidType, "expected number or string")
+			}
+		}
+		checkUnknownFields(bm, []string{"cost", "duration", "abandon", "fail", "output", "resource", "patience"}, p, errs)
 		sim.Behaviors[k] = b
 	}
+}
+
+func bindArrivals(val any, path string, sim *Sim, errs *engine.ValidationErrors) {
+	if val == nil {
+		return
+	}
+	m, ok := val.(map[string]any)
+	if !ok {
+		errs.Add(path, engine.CodeInvalidType, "expected object")
+		return
+	}
+	var arr ArrivalsSpec
+	if p, ok := m["poisson"]; ok {
+		if pm, ok := p.(map[string]any); ok {
+			var poisson PoissonArrivals
+			if r, ok := pm["rate"]; ok {
+				if isNumberOrCEL(r) {
+					poisson.Rate = r
+				} else {
+					errs.Add(path+".poisson.rate", engine.CodeInvalidType, "expected number or string")
+				}
+			}
+			checkUnknownFields(pm, []string{"rate"}, path+".poisson", errs)
+			arr.Poisson = &poisson
+		} else {
+			errs.Add(path+".poisson", engine.CodeInvalidType, "expected object")
+		}
+	}
+	if s, ok := m["schedule"]; ok {
+		if sl, ok := s.([]any); ok {
+			for i, elem := range sl {
+				if em, ok := elem.(map[string]any); ok {
+					var w ScheduleWindow
+					if dur, ok := em["duration"].(string); ok {
+						w.Duration = dur
+					}
+					if r, ok := em["rate"]; ok {
+						if isNumberOrCEL(r) {
+							w.Rate = r
+						}
+					}
+					checkUnknownFields(em, []string{"duration", "rate"}, fmt.Sprintf("%s.schedule[%d]", path, i), errs)
+					arr.Schedule = append(arr.Schedule, w)
+				}
+			}
+		}
+	}
+	if emp, ok := m["empirical"]; ok {
+		if el, ok := emp.([]any); ok {
+			for _, elem := range el {
+				if num, ok := getFloat(elem); ok {
+					arr.Empirical = append(arr.Empirical, num)
+				}
+			}
+		}
+	}
+	checkUnknownFields(m, []string{"poisson", "schedule", "empirical"}, path, errs)
+	sim.Arrivals = &arr
 }
 
 func bindResources(val any, path string, sim *Sim, errs *engine.ValidationErrors) {
@@ -399,6 +475,22 @@ func bindValueSpec(val any, path string, errs *engine.ValidationErrors) ValueSpe
 			errs.Add(path+".empirical", engine.CodeInvalidType, "expected array")
 		}
 	}
+	if exponential, ok := m["exponential"]; ok {
+		if em, ok := exponential.(map[string]any); ok {
+			var e Exponential
+			if r, ok := em["rate"]; ok {
+				if isNumberOrCEL(r) {
+					e.Rate = r
+				} else {
+					errs.Add(path+".exponential.rate", engine.CodeInvalidType, "expected number or string")
+				}
+			}
+			checkUnknownFields(em, []string{"rate"}, path+".exponential", errs)
+			vs.Exponential = &e
+		} else {
+			errs.Add(path+".exponential", engine.CodeInvalidType, "expected object")
+		}
+	}
 	if expr, ok := m["expr"]; ok {
 		if s, ok := expr.(string); ok {
 			vs.Expr = s
@@ -407,7 +499,7 @@ func bindValueSpec(val any, path string, errs *engine.ValidationErrors) ValueSpe
 		}
 	}
 
-	checkUnknownFields(m, []string{"fixed", "choice", "bernoulli", "normal", "lognormal", "uniform", "triangular", "empirical", "expr"}, path, errs)
+	checkUnknownFields(m, []string{"fixed", "choice", "bernoulli", "normal", "lognormal", "uniform", "triangular", "exponential", "empirical", "expr"}, path, errs)
 
 	return vs
 }
