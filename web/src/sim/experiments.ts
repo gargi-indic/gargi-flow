@@ -113,3 +113,19 @@ export async function getReport<T = unknown>(id: string, kind: string): Promise<
 
   return await response.json() as T;
 }
+
+export async function getRun(id: string, index: number, world?: string, policy?: string): Promise<unknown> {
+  const url = new URL(`${baseUrl}/v1/experiments/${id}/runs/${index}`);
+  if (world) {
+    url.searchParams.append('world', world);
+  }
+  if (policy) {
+    url.searchParams.append('policyId', policy);
+  }
+  
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Failed to fetch run: ${response.statusText}`);
+  }
+  return await response.json();
+}

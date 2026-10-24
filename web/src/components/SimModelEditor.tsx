@@ -9,16 +9,26 @@ import WorldsPanel from './WorldsPanel';
 import LatentsPanel from './LatentsPanel';
 import ObjectivePanel from './ObjectivePanel';
 import { SimulatePanel } from './SimulatePanel';
+import RegretPanel from './RegretPanel';
+import VoiPanel from './VoiPanel';
+import FlipPointPanel from './FlipPointPanel';
+import PolicyCompare from './PolicyCompare';
+import RunReplay from './RunReplay';
 import ResultsBar from './ResultsBar';
 import { choicesByDecision, edgeMass } from '../sim/results';
 import type { SimulationReport } from '../sim/results';
 
 type DocName = keyof SimDocs;
 
-const TABS: { name: DocName; label: string }[] = [
+const TABS: { name: DocName | 'experiment' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay'; label: string }[] = [
   { name: 'graph', label: 'graph.yaml' },
   { name: 'sim', label: 'sim.yaml' },
   { name: 'experiment', label: 'Simulate' },
+  { name: 'regret', label: 'Regret' },
+  { name: 'voi', label: 'VOI' },
+  { name: 'flip', label: 'Flip Points' },
+  { name: 'compare', label: 'Compare' },
+  { name: 'replay', label: 'Replay' },
 ];
 
 type Props = {
@@ -27,16 +37,17 @@ type Props = {
 };
 
 export default function SimModelEditor({ docs, onChange }: Props) {
-  const [active, setActive] = useState<DocName>('sim');
+  const [active, setActive] = useState<DocName | 'experiment' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay'>('sim');
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [newDecisionId, setNewDecisionId] = useState('');
   const [panelsCollapsed, setPanelsCollapsed] = useState(false);
-  const [summaryJson, setSummaryJson] = useState<SimulationReport | null>(null);
+const [summaryJson, setSummaryJson] = useState<SimulationReport | null>(null);
   const [selectedWorld, setSelectedWorld] = useState<string>('base');
-  const [, setExperimentId] = useState<string>('');
+  const [experimentId, setExperimentId] = useState<string>('');
+  const [nodeStatuses, setNodeStatuses] = useState<Record<string, string>>({});
 
   const handleValidate = async () => {
     setBusy(true);
@@ -191,7 +202,7 @@ export default function SimModelEditor({ docs, onChange }: Props) {
               onWorldChange={setSelectedWorld}
             />
           )}
-          <div style={{ flex: 1, display: 'flex', borderBottom: '1px solid #ccc' }}>
+<div style={{ flex: 1, display: 'flex', borderBottom: '1px solid #ccc' }}>
             {active === 'experiment' ? (
               <SimulatePanel
                 simYaml={docs.sim}
@@ -209,6 +220,16 @@ export default function SimModelEditor({ docs, onChange }: Props) {
                 }}
                 setExperimentId={setExperimentId}
               />
+            ) : active === 'regret' ? (
+              <RegretPanel regret={summaryJson?.reports?.regret} />
+            ) : active === 'voi' ? (
+              <VoiPanel voiData={summaryJson?.reports?.voi} />
+            ) : active === 'flip' ? (
+              <FlipPointPanel flipData={summaryJson?.reports?.flipPoints} />
+            ) : active === 'compare' ? (
+              <PolicyCompare policyTree={summaryJson?.reports?.policyTree} selectedWorld={selectedWorld} />
+            ) : active === 'replay' ? (
+              <RunReplay experimentId={experimentId} selectedWorld={selectedWorld} onNodeStatusesChange={setNodeStatuses} />
             ) : (
               <textarea
                 key={active}
@@ -231,6 +252,7 @@ export default function SimModelEditor({ docs, onChange }: Props) {
                   choices: choicesByDecision(summaryJson.reports?.policyTree, selectedWorld),
                   edgeMass: edgeMass(summaryJson.reports?.pathHeatmap, selectedWorld),
                 } : undefined}
+                nodeStatuses={nodeStatuses}
               />
             )}
             {parsedGraph instanceof Error && (
