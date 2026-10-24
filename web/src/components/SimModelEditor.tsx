@@ -8,13 +8,14 @@ import DecisionEditor from './DecisionEditor';
 import WorldsPanel from './WorldsPanel';
 import LatentsPanel from './LatentsPanel';
 import ObjectivePanel from './ObjectivePanel';
+import { SimulatePanel } from './SimulatePanel';
 
 type DocName = keyof SimDocs;
 
 const TABS: { name: DocName; label: string }[] = [
   { name: 'graph', label: 'graph.yaml' },
   { name: 'sim', label: 'sim.yaml' },
-  { name: 'experiment', label: 'experiment.yaml' },
+  { name: 'experiment', label: 'Simulate' },
 ];
 
 type Props = {
@@ -30,6 +31,8 @@ export default function SimModelEditor({ docs, onChange }: Props) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [newDecisionId, setNewDecisionId] = useState('');
   const [panelsCollapsed, setPanelsCollapsed] = useState(false);
+  const [, setSummaryJson] = useState<unknown>(null);
+  const [, setExperimentId] = useState<string>('');
 
   const handleValidate = async () => {
     setBusy(true);
@@ -178,14 +181,23 @@ export default function SimModelEditor({ docs, onChange }: Props) {
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, display: 'flex', borderBottom: '1px solid #ccc' }}>
-            <textarea
-              key={active}
-              data-testid={`sim-editor-${active}`}
-              value={docs[active]}
-              onChange={(e) => onChange({ ...docs, [active]: e.target.value })}
-              spellCheck={false}
-              style={{ flex: 1, padding: '10px', boxSizing: 'border-box', fontFamily: 'monospace', resize: 'none', border: 'none' }}
-            />
+            {active === 'experiment' ? (
+              <SimulatePanel
+                simYaml={docs.sim}
+                graphYaml={docs.graph}
+                setSummaryJson={setSummaryJson}
+                setExperimentId={setExperimentId}
+              />
+            ) : (
+              <textarea
+                key={active}
+                data-testid={`sim-editor-${active}`}
+                value={docs[active]}
+                onChange={(e) => onChange({ ...docs, [active]: e.target.value })}
+                spellCheck={false}
+                style={{ flex: 1, padding: '10px', boxSizing: 'border-box', fontFamily: 'monospace', resize: 'none', border: 'none' }}
+              />
+            )}
           </div>
           <div style={{ flex: 1, position: 'relative' }}>
             {!(parsedGraph instanceof Error) && (

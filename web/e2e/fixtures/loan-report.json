@@ -1,0 +1,1602 @@
+{
+  "model": "loan-underwriting",
+  "evaluator": "exact",
+  "runs": 0,
+  "seed": 42,
+  "top": 5,
+  "worlds": [
+    {
+      "world": "base",
+      "policies": [
+        {
+          "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+          "description": "screen=score; route[score,high]=reject; route[score,low]=approve",
+          "objective": {
+            "n": 4,
+            "totalWeight": 1,
+            "mean": 460.00000000000017,
+            "stdDev": 1203.9933554633928,
+            "ci95Low": 460.00000000000017,
+            "ci95High": 460.00000000000017,
+            "p50": 980,
+            "p95": 980,
+            "min": -4020,
+            "max": 980,
+            "constraintProb": {},
+            "exact": true
+          },
+          "duration": {
+            "n": 4,
+            "totalWeight": 1,
+            "mean": 0,
+            "stdDev": 0,
+            "ci95Low": 0,
+            "ci95High": 0,
+            "p50": 0,
+            "p95": 0,
+            "min": 0,
+            "max": 0,
+            "constraintProb": null,
+            "exact": true
+          }
+        },
+        {
+          "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+          "description": "screen=score; route[score,high]=reject; route[score,low]=review; final[score,low,fail]=reject; final[score,low,pass]=approve",
+          "objective": {
+            "n": 7,
+            "totalWeight": 1,
+            "mean": 317.79999999999995,
+            "stdDev": 584.6376313580918,
+            "ci95Low": 317.79999999999995,
+            "ci95High": 317.79999999999995,
+            "p50": -20,
+            "p95": 830,
+            "min": -4170,
+            "max": 830,
+            "constraintProb": {},
+            "exact": true
+          },
+          "duration": {
+            "n": 7,
+            "totalWeight": 1,
+            "mean": 97459.2,
+            "stdDev": 85689.2881016058,
+            "ci95Low": 97459.2,
+            "ci95High": 97459.2,
+            "p50": 172800,
+            "p95": 172800,
+            "min": 0,
+            "max": 172800,
+            "constraintProb": null,
+            "exact": true
+          }
+        }
+      ],
+      "solution": {
+        "solver": "backward_induction",
+        "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+        "description": "screen=score; route[score,high]=reject; route[score,low]=approve",
+        "ev": 460,
+        "histories": 39,
+        "informationSets": [
+          {
+            "infoSet": "screen",
+            "decision": "screen",
+            "observed": {},
+            "chanceProbability": 1,
+            "reachProbability": 1,
+            "choice": "score",
+            "actions": [
+              {
+                "option": "score",
+                "value": 460
+              },
+              {
+                "option": "skip",
+                "value": 302
+              }
+            ]
+          },
+          {
+            "infoSet": "route[score,high]",
+            "decision": "route",
+            "observed": {
+              "ai_score.output.band": "high",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "screen",
+              "option": "score"
+            },
+            "chanceProbability": 0.22,
+            "reachProbability": 0.22,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -2201.8181818181815
+              },
+              {
+                "option": "reject",
+                "value": -20
+              },
+              {
+                "option": "review",
+                "value": -170
+              }
+            ]
+          },
+          {
+            "infoSet": "route[score,low]",
+            "decision": "route",
+            "observed": {
+              "ai_score.output.band": "low",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "screen",
+              "option": "score"
+            },
+            "chanceProbability": 0.78,
+            "reachProbability": 0.78,
+            "choice": "approve",
+            "actions": [
+              {
+                "option": "approve",
+                "value": 595.3846153846156
+              },
+              {
+                "option": "reject",
+                "value": -20
+              },
+              {
+                "option": "review",
+                "value": 413.0769230769231
+              }
+            ]
+          },
+          {
+            "infoSet": "route[skip,nil]",
+            "decision": "route",
+            "observed": {
+              "ai_score.output.band": null,
+              "screen.output.choice": "skip"
+            },
+            "parent": {
+              "infoSet": "screen",
+              "option": "skip"
+            },
+            "chanceProbability": 1,
+            "reachProbability": 0,
+            "choice": "review",
+            "actions": [
+              {
+                "option": "approve",
+                "value": 0
+              },
+              {
+                "option": "reject",
+                "value": 0
+              },
+              {
+                "option": "review",
+                "value": 302
+              }
+            ]
+          },
+          {
+            "infoSet": "final[score,high,fail]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": "high",
+              "human_review.output.result": "fail",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "route[score,high]",
+              "option": "review"
+            },
+            "chanceProbability": 0.1288,
+            "reachProbability": 0,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -4061.304347826087
+              },
+              {
+                "option": "reject",
+                "value": -170
+              }
+            ]
+          },
+          {
+            "infoSet": "final[score,high,pass]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": "high",
+              "human_review.output.result": "pass",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "route[score,high]",
+              "option": "review"
+            },
+            "chanceProbability": 0.06720000000000001,
+            "reachProbability": 0,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -211.6666666666665
+              },
+              {
+                "option": "reject",
+                "value": -169.99999999999997
+              }
+            ]
+          },
+          {
+            "infoSet": "final[score,low,fail]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": "low",
+              "human_review.output.result": "fail",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "route[score,low]",
+              "option": "review"
+            },
+            "chanceProbability": 0.07919999999999999,
+            "reachProbability": 0,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -2579.0909090909095
+              },
+              {
+                "option": "reject",
+                "value": -170
+              }
+            ]
+          },
+          {
+            "infoSet": "final[score,low,pass]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": "low",
+              "human_review.output.result": "pass",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "route[score,low]",
+              "option": "review"
+            },
+            "chanceProbability": 0.4848,
+            "reachProbability": 0,
+            "choice": "approve",
+            "actions": [
+              {
+                "option": "approve",
+                "value": 768.1188118811881
+              },
+              {
+                "option": "reject",
+                "value": -170
+              }
+            ]
+          },
+          {
+            "infoSet": "final[skip,nil,fail]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": null,
+              "human_review.output.result": "fail",
+              "screen.output.choice": "skip"
+            },
+            "parent": {
+              "infoSet": "route[skip,nil]",
+              "option": "review"
+            },
+            "chanceProbability": 0.20800000000000002,
+            "reachProbability": 0,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -3476.9230769230776
+              },
+              {
+                "option": "reject",
+                "value": -150
+              }
+            ]
+          },
+          {
+            "infoSet": "final[skip,nil,pass]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": null,
+              "human_review.output.result": "pass",
+              "screen.output.choice": "skip"
+            },
+            "parent": {
+              "infoSet": "route[skip,nil]",
+              "option": "review"
+            },
+            "chanceProbability": 0.5519999999999999,
+            "reachProbability": 0,
+            "choice": "approve",
+            "actions": [
+              {
+                "option": "approve",
+                "value": 668.8405797101449
+              },
+              {
+                "option": "reject",
+                "value": -150
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "world": "recession",
+      "policies": [
+        {
+          "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+          "description": "screen=score; route[score,high]=reject; route[score,low]=review; final[score,low,fail]=reject; final[score,low,pass]=approve",
+          "objective": {
+            "n": 7,
+            "totalWeight": 1,
+            "mean": 202.52500000000003,
+            "stdDev": 797.0101156039362,
+            "ci95Low": 202.52500000000003,
+            "ci95High": 202.52500000000003,
+            "p50": -20,
+            "p95": 830,
+            "min": -6170,
+            "max": 830,
+            "constraintProb": {},
+            "exact": true
+          },
+          "duration": {
+            "n": 7,
+            "totalWeight": 1,
+            "mean": 88905.6,
+            "stdDev": 86363.66115815147,
+            "ci95Low": 88905.6,
+            "ci95High": 88905.6,
+            "p50": 172800,
+            "p95": 172800,
+            "min": 0,
+            "max": 172800,
+            "constraintProb": null,
+            "exact": true
+          }
+        },
+        {
+          "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+          "description": "screen=score; route[score,high]=reject; route[score,low]=approve",
+          "objective": {
+            "n": 4,
+            "totalWeight": 1.0000000000000002,
+            "mean": -64.99999999999987,
+            "stdDev": 2088.7735636013776,
+            "ci95Low": -64.99999999999987,
+            "ci95High": -64.99999999999987,
+            "p50": 980,
+            "p95": 980,
+            "min": -6020,
+            "max": 980,
+            "constraintProb": {},
+            "exact": true
+          },
+          "duration": {
+            "n": 4,
+            "totalWeight": 1.0000000000000002,
+            "mean": 0,
+            "stdDev": 0,
+            "ci95Low": 0,
+            "ci95High": 0,
+            "p50": 0,
+            "p95": 0,
+            "min": 0,
+            "max": 0,
+            "constraintProb": null,
+            "exact": true
+          }
+        }
+      ],
+      "solution": {
+        "solver": "backward_induction",
+        "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+        "description": "screen=score; route[score,high]=reject; route[score,low]=review; final[score,low,fail]=reject; final[score,low,pass]=approve",
+        "ev": 202.52500000000003,
+        "histories": 39,
+        "informationSets": [
+          {
+            "infoSet": "screen",
+            "decision": "screen",
+            "observed": {},
+            "chanceProbability": 1,
+            "reachProbability": 1,
+            "choice": "score",
+            "actions": [
+              {
+                "option": "score",
+                "value": 202.52500000000003
+              },
+              {
+                "option": "skip",
+                "value": 72.25
+              }
+            ]
+          },
+          {
+            "infoSet": "route[score,high]",
+            "decision": "route",
+            "observed": {
+              "ai_score.output.band": "high",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "screen",
+              "option": "score"
+            },
+            "chanceProbability": 0.30999999999999994,
+            "reachProbability": 0.30999999999999994,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -4552.25806451613
+              },
+              {
+                "option": "reject",
+                "value": -20
+              },
+              {
+                "option": "review",
+                "value": -170
+              }
+            ]
+          },
+          {
+            "infoSet": "route[score,low]",
+            "decision": "route",
+            "observed": {
+              "ai_score.output.band": "low",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "screen",
+              "option": "score"
+            },
+            "chanceProbability": 0.6900000000000001,
+            "reachProbability": 0.6900000000000001,
+            "choice": "review",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -85.21739130434776
+              },
+              {
+                "option": "reject",
+                "value": -20
+              },
+              {
+                "option": "review",
+                "value": 302.50000000000006
+              }
+            ]
+          },
+          {
+            "infoSet": "route[skip,nil]",
+            "decision": "route",
+            "observed": {
+              "ai_score.output.band": null,
+              "screen.output.choice": "skip"
+            },
+            "parent": {
+              "infoSet": "screen",
+              "option": "skip"
+            },
+            "chanceProbability": 1,
+            "reachProbability": 0,
+            "choice": "review",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -1450
+              },
+              {
+                "option": "reject",
+                "value": 0
+              },
+              {
+                "option": "review",
+                "value": 72.25
+              }
+            ]
+          },
+          {
+            "infoSet": "final[score,high,fail]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": "high",
+              "human_review.output.result": "fail",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "route[score,high]",
+              "option": "review"
+            },
+            "chanceProbability": 0.22277499999999997,
+            "reachProbability": 0,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -6098.515318146112
+              },
+              {
+                "option": "reject",
+                "value": -169.99999999999997
+              }
+            ]
+          },
+          {
+            "infoSet": "final[score,high,pass]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": "high",
+              "human_review.output.result": "pass",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "route[score,high]",
+              "option": "review"
+            },
+            "chanceProbability": 0.067725,
+            "reachProbability": 0,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -1702.2997416020671
+              },
+              {
+                "option": "reject",
+                "value": -170
+              }
+            ]
+          },
+          {
+            "infoSet": "final[score,low,fail]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": "low",
+              "human_review.output.result": "fail",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "route[score,low]",
+              "option": "review"
+            },
+            "chanceProbability": 0.11497500000000001,
+            "reachProbability": 0.11497500000000001,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -4923.424657534247
+              },
+              {
+                "option": "reject",
+                "value": -170
+              }
+            ]
+          },
+          {
+            "infoSet": "final[score,low,pass]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": "low",
+              "human_review.output.result": "pass",
+              "screen.output.choice": "score"
+            },
+            "parent": {
+              "infoSet": "route[score,low]",
+              "option": "review"
+            },
+            "chanceProbability": 0.399525,
+            "reachProbability": 0.399525,
+            "choice": "approve",
+            "actions": [
+              {
+                "option": "approve",
+                "value": 646.0315374507227
+              },
+              {
+                "option": "reject",
+                "value": -170
+              }
+            ]
+          },
+          {
+            "infoSet": "final[skip,nil,fail]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": null,
+              "human_review.output.result": "fail",
+              "screen.output.choice": "skip"
+            },
+            "parent": {
+              "infoSet": "route[skip,nil]",
+              "option": "review"
+            },
+            "chanceProbability": 0.33775,
+            "reachProbability": 0,
+            "choice": "reject",
+            "actions": [
+              {
+                "option": "approve",
+                "value": -5678.4974093264245
+              },
+              {
+                "option": "reject",
+                "value": -150
+              }
+            ]
+          },
+          {
+            "infoSet": "final[skip,nil,pass]",
+            "decision": "final",
+            "observed": {
+              "ai_score.output.band": null,
+              "human_review.output.result": "pass",
+              "screen.output.choice": "skip"
+            },
+            "parent": {
+              "infoSet": "route[skip,nil]",
+              "option": "review"
+            },
+            "chanceProbability": 0.46724999999999994,
+            "reachProbability": 0,
+            "choice": "approve",
+            "actions": [
+              {
+                "option": "approve",
+                "value": 325.6554307116105
+              },
+              {
+                "option": "reject",
+                "value": -150
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "reports": {
+    "regret": {
+      "worlds": [
+        "base",
+        "recession"
+      ],
+      "rows": [
+        {
+          "tunedFor": "base",
+          "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+          "cells": [
+            {
+              "world": "base",
+              "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+              "value": 460.00000000000017,
+              "regret": 0,
+              "feasible": true
+            },
+            {
+              "world": "recession",
+              "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+              "value": -64.99999999999987,
+              "regret": 267.5249999999999,
+              "feasible": true
+            }
+          ],
+          "maxRegret": 267.5249999999999
+        },
+        {
+          "tunedFor": "recession",
+          "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+          "cells": [
+            {
+              "world": "base",
+              "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+              "value": 317.79999999999995,
+              "regret": 142.20000000000022,
+              "feasible": true
+            },
+            {
+              "world": "recession",
+              "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+              "value": 202.52500000000003,
+              "regret": 0,
+              "feasible": true
+            }
+          ],
+          "maxRegret": 142.20000000000022
+        }
+      ]
+    },
+    "voi": [
+      {
+        "world": "base",
+        "node": "ai_score",
+        "withObservation": {
+          "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+          "ev": 460
+        },
+        "withoutObservation": {
+          "policyId": "loan-underwriting@exhaustive-62a5f1ffb4fdb3d9",
+          "ev": 302
+        },
+        "voi": 158
+      },
+      {
+        "world": "recession",
+        "node": "ai_score",
+        "withObservation": {
+          "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+          "ev": 202.52500000000003
+        },
+        "withoutObservation": {
+          "policyId": "loan-underwriting@exhaustive-62a5f1ffb4fdb3d9",
+          "ev": 72.25
+        },
+        "voi": 130.27500000000003
+      }
+    ],
+    "flipPoints": [
+      {
+        "param": "p_bad",
+        "baseWorld": "base",
+        "lo": 0.2,
+        "hi": 0.35,
+        "sweep": [
+          {
+            "value": 0.2,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 460
+          },
+          {
+            "value": 0.20750000000000002,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 444.24999999999994
+          },
+          {
+            "value": 0.215,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 428.50000000000006
+          },
+          {
+            "value": 0.2225,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 412.74999999999994
+          },
+          {
+            "value": 0.23,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 397
+          },
+          {
+            "value": 0.2375,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 381.25
+          },
+          {
+            "value": 0.245,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 365.5
+          },
+          {
+            "value": 0.2525,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 349.75000000000006
+          },
+          {
+            "value": 0.26,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 334.00000000000006
+          },
+          {
+            "value": 0.26749999999999996,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 318.25000000000006
+          },
+          {
+            "value": 0.275,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 302.5
+          },
+          {
+            "value": 0.2825,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 286.75
+          },
+          {
+            "value": 0.29,
+            "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+            "ev": 271
+          },
+          {
+            "value": 0.2975,
+            "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+            "ev": 256.52125
+          },
+          {
+            "value": 0.305,
+            "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+            "ev": 251.8075
+          },
+          {
+            "value": 0.3125,
+            "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+            "ev": 247.09375
+          },
+          {
+            "value": 0.31999999999999995,
+            "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+            "ev": 242.38000000000005
+          },
+          {
+            "value": 0.3275,
+            "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+            "ev": 237.66624999999996
+          },
+          {
+            "value": 0.33499999999999996,
+            "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+            "ev": 232.95250000000001
+          },
+          {
+            "value": 0.34249999999999997,
+            "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+            "ev": 228.23874999999998
+          },
+          {
+            "value": 0.35,
+            "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+            "ev": 223.52500000000003
+          }
+        ],
+        "flips": [
+          {
+            "from": "screen=score; route[score,high]=reject; route[score,low]=approve",
+            "to": "screen=score; route[score,high]=reject; route[score,low]=review; final[score,low,fail]=reject; final[score,low,pass]=approve",
+            "left": {
+              "value": 0.2966360855102539,
+              "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+              "ev": 257.06422042846685
+            },
+            "right": {
+              "value": 0.29663619995117185,
+              "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+              "ev": 257.0641483306885
+            }
+          }
+        ]
+      }
+    ],
+    "pathHeatmap": [
+      {
+        "world": "base",
+        "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+        "nodes": [
+          {
+            "id": "screen",
+            "mass": 1
+          },
+          {
+            "id": "ai_score",
+            "mass": 1
+          },
+          {
+            "id": "route",
+            "mass": 1
+          },
+          {
+            "id": "human_review",
+            "mass": 0
+          },
+          {
+            "id": "final",
+            "mass": 0
+          },
+          {
+            "id": "approve",
+            "mass": 0.78
+          },
+          {
+            "id": "reject",
+            "mass": 0.22
+          }
+        ],
+        "edges": [
+          {
+            "from": "screen",
+            "to": "ai_score",
+            "index": 0,
+            "mass": 1
+          },
+          {
+            "from": "screen",
+            "to": "route",
+            "index": 1,
+            "mass": 0
+          },
+          {
+            "from": "ai_score",
+            "to": "route",
+            "index": 2,
+            "mass": 1
+          },
+          {
+            "from": "route",
+            "to": "human_review",
+            "index": 3,
+            "mass": 0
+          },
+          {
+            "from": "human_review",
+            "to": "final",
+            "index": 4,
+            "mass": 0
+          },
+          {
+            "from": "route",
+            "to": "approve",
+            "index": 5,
+            "mass": 0.78
+          },
+          {
+            "from": "final",
+            "to": "approve",
+            "index": 6,
+            "mass": 0
+          },
+          {
+            "from": "route",
+            "to": "reject",
+            "index": 7,
+            "mass": 0.22
+          },
+          {
+            "from": "final",
+            "to": "reject",
+            "index": 8,
+            "mass": 0
+          }
+        ]
+      },
+      {
+        "world": "recession",
+        "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+        "nodes": [
+          {
+            "id": "screen",
+            "mass": 1
+          },
+          {
+            "id": "ai_score",
+            "mass": 1
+          },
+          {
+            "id": "route",
+            "mass": 1
+          },
+          {
+            "id": "human_review",
+            "mass": 0.6900000000000001
+          },
+          {
+            "id": "final",
+            "mass": 0.5145
+          },
+          {
+            "id": "approve",
+            "mass": 0.399525
+          },
+          {
+            "id": "reject",
+            "mass": 0.424975
+          }
+        ],
+        "edges": [
+          {
+            "from": "screen",
+            "to": "ai_score",
+            "index": 0,
+            "mass": 1
+          },
+          {
+            "from": "screen",
+            "to": "route",
+            "index": 1,
+            "mass": 0
+          },
+          {
+            "from": "ai_score",
+            "to": "route",
+            "index": 2,
+            "mass": 1
+          },
+          {
+            "from": "route",
+            "to": "human_review",
+            "index": 3,
+            "mass": 0.6900000000000001
+          },
+          {
+            "from": "human_review",
+            "to": "final",
+            "index": 4,
+            "mass": 0.5145
+          },
+          {
+            "from": "route",
+            "to": "approve",
+            "index": 5,
+            "mass": 0
+          },
+          {
+            "from": "final",
+            "to": "approve",
+            "index": 6,
+            "mass": 0.399525
+          },
+          {
+            "from": "route",
+            "to": "reject",
+            "index": 7,
+            "mass": 0.30999999999999994
+          },
+          {
+            "from": "final",
+            "to": "reject",
+            "index": 8,
+            "mass": 0.11497500000000001
+          }
+        ]
+      }
+    ],
+    "policyTree": [
+      {
+        "world": "base",
+        "policyId": "loan-underwriting@exhaustive-b1b8bd20353bca7f",
+        "ev": 460,
+        "roots": [
+          {
+            "infoSet": "screen",
+            "decision": "screen",
+            "observed": {},
+            "reachProbability": 1,
+            "onPath": true,
+            "choice": "score",
+            "actions": [
+              {
+                "option": "score",
+                "value": 460,
+                "children": [
+                  {
+                    "infoSet": "route[score,high]",
+                    "decision": "route",
+                    "observed": {
+                      "ai_score.output.band": "high",
+                      "screen.output.choice": "score"
+                    },
+                    "reachProbability": 0.22,
+                    "onPath": true,
+                    "choice": "reject",
+                    "actions": [
+                      {
+                        "option": "approve",
+                        "value": -2201.8181818181815,
+                        "children": []
+                      },
+                      {
+                        "option": "reject",
+                        "value": -20,
+                        "children": []
+                      },
+                      {
+                        "option": "review",
+                        "value": -170,
+                        "children": [
+                          {
+                            "infoSet": "final[score,high,fail]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": "high",
+                              "human_review.output.result": "fail",
+                              "screen.output.choice": "score"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "reject",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": -4061.304347826087,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -170,
+                                "children": []
+                              }
+                            ]
+                          },
+                          {
+                            "infoSet": "final[score,high,pass]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": "high",
+                              "human_review.output.result": "pass",
+                              "screen.output.choice": "score"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "reject",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": -211.6666666666665,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -169.99999999999997,
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "infoSet": "route[score,low]",
+                    "decision": "route",
+                    "observed": {
+                      "ai_score.output.band": "low",
+                      "screen.output.choice": "score"
+                    },
+                    "reachProbability": 0.78,
+                    "onPath": true,
+                    "choice": "approve",
+                    "actions": [
+                      {
+                        "option": "approve",
+                        "value": 595.3846153846156,
+                        "children": []
+                      },
+                      {
+                        "option": "reject",
+                        "value": -20,
+                        "children": []
+                      },
+                      {
+                        "option": "review",
+                        "value": 413.0769230769231,
+                        "children": [
+                          {
+                            "infoSet": "final[score,low,fail]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": "low",
+                              "human_review.output.result": "fail",
+                              "screen.output.choice": "score"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "reject",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": -2579.0909090909095,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -170,
+                                "children": []
+                              }
+                            ]
+                          },
+                          {
+                            "infoSet": "final[score,low,pass]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": "low",
+                              "human_review.output.result": "pass",
+                              "screen.output.choice": "score"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "approve",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": 768.1188118811881,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -170,
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "option": "skip",
+                "value": 302,
+                "children": [
+                  {
+                    "infoSet": "route[skip,nil]",
+                    "decision": "route",
+                    "observed": {
+                      "ai_score.output.band": null,
+                      "screen.output.choice": "skip"
+                    },
+                    "reachProbability": 0,
+                    "onPath": false,
+                    "choice": "review",
+                    "actions": [
+                      {
+                        "option": "approve",
+                        "value": 0,
+                        "children": []
+                      },
+                      {
+                        "option": "reject",
+                        "value": 0,
+                        "children": []
+                      },
+                      {
+                        "option": "review",
+                        "value": 302,
+                        "children": [
+                          {
+                            "infoSet": "final[skip,nil,fail]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": null,
+                              "human_review.output.result": "fail",
+                              "screen.output.choice": "skip"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "reject",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": -3476.9230769230776,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -150,
+                                "children": []
+                              }
+                            ]
+                          },
+                          {
+                            "infoSet": "final[skip,nil,pass]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": null,
+                              "human_review.output.result": "pass",
+                              "screen.output.choice": "skip"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "approve",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": 668.8405797101449,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -150,
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "world": "recession",
+        "policyId": "loan-underwriting@exhaustive-6dc3a13c1fed194b",
+        "ev": 202.52500000000003,
+        "roots": [
+          {
+            "infoSet": "screen",
+            "decision": "screen",
+            "observed": {},
+            "reachProbability": 1,
+            "onPath": true,
+            "choice": "score",
+            "actions": [
+              {
+                "option": "score",
+                "value": 202.52500000000003,
+                "children": [
+                  {
+                    "infoSet": "route[score,high]",
+                    "decision": "route",
+                    "observed": {
+                      "ai_score.output.band": "high",
+                      "screen.output.choice": "score"
+                    },
+                    "reachProbability": 0.30999999999999994,
+                    "onPath": true,
+                    "choice": "reject",
+                    "actions": [
+                      {
+                        "option": "approve",
+                        "value": -4552.25806451613,
+                        "children": []
+                      },
+                      {
+                        "option": "reject",
+                        "value": -20,
+                        "children": []
+                      },
+                      {
+                        "option": "review",
+                        "value": -170,
+                        "children": [
+                          {
+                            "infoSet": "final[score,high,fail]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": "high",
+                              "human_review.output.result": "fail",
+                              "screen.output.choice": "score"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "reject",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": -6098.515318146112,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -169.99999999999997,
+                                "children": []
+                              }
+                            ]
+                          },
+                          {
+                            "infoSet": "final[score,high,pass]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": "high",
+                              "human_review.output.result": "pass",
+                              "screen.output.choice": "score"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "reject",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": -1702.2997416020671,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -170,
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "infoSet": "route[score,low]",
+                    "decision": "route",
+                    "observed": {
+                      "ai_score.output.band": "low",
+                      "screen.output.choice": "score"
+                    },
+                    "reachProbability": 0.6900000000000001,
+                    "onPath": true,
+                    "choice": "review",
+                    "actions": [
+                      {
+                        "option": "approve",
+                        "value": -85.21739130434776,
+                        "children": []
+                      },
+                      {
+                        "option": "reject",
+                        "value": -20,
+                        "children": []
+                      },
+                      {
+                        "option": "review",
+                        "value": 302.50000000000006,
+                        "children": [
+                          {
+                            "infoSet": "final[score,low,fail]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": "low",
+                              "human_review.output.result": "fail",
+                              "screen.output.choice": "score"
+                            },
+                            "reachProbability": 0.11497500000000001,
+                            "onPath": true,
+                            "choice": "reject",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": -4923.424657534247,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -170,
+                                "children": []
+                              }
+                            ]
+                          },
+                          {
+                            "infoSet": "final[score,low,pass]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": "low",
+                              "human_review.output.result": "pass",
+                              "screen.output.choice": "score"
+                            },
+                            "reachProbability": 0.399525,
+                            "onPath": true,
+                            "choice": "approve",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": 646.0315374507227,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -170,
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "option": "skip",
+                "value": 72.25,
+                "children": [
+                  {
+                    "infoSet": "route[skip,nil]",
+                    "decision": "route",
+                    "observed": {
+                      "ai_score.output.band": null,
+                      "screen.output.choice": "skip"
+                    },
+                    "reachProbability": 0,
+                    "onPath": false,
+                    "choice": "review",
+                    "actions": [
+                      {
+                        "option": "approve",
+                        "value": -1450,
+                        "children": []
+                      },
+                      {
+                        "option": "reject",
+                        "value": 0,
+                        "children": []
+                      },
+                      {
+                        "option": "review",
+                        "value": 72.25,
+                        "children": [
+                          {
+                            "infoSet": "final[skip,nil,fail]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": null,
+                              "human_review.output.result": "fail",
+                              "screen.output.choice": "skip"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "reject",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": -5678.4974093264245,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -150,
+                                "children": []
+                              }
+                            ]
+                          },
+                          {
+                            "infoSet": "final[skip,nil,pass]",
+                            "decision": "final",
+                            "observed": {
+                              "ai_score.output.band": null,
+                              "human_review.output.result": "pass",
+                              "screen.output.choice": "skip"
+                            },
+                            "reachProbability": 0,
+                            "onPath": false,
+                            "choice": "approve",
+                            "actions": [
+                              {
+                                "option": "approve",
+                                "value": 325.6554307116105,
+                                "children": []
+                              },
+                              {
+                                "option": "reject",
+                                "value": -150,
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
