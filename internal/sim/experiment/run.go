@@ -85,6 +85,8 @@ type Report struct {
 	// list, computed from the primary estimates (exact for evaluator both).
 	// It is omitted when no report is requested.
 	Reports *ReportSet `json:"reports,omitempty"`
+	// Racing holds the elimination history and speedup of racing search.
+	Racing *RacingReport `json:"racing,omitempty"`
 }
 
 // WorldReport holds the policy results of one world.
@@ -230,6 +232,13 @@ func Run(ctx context.Context, exp *CompiledExperiment, src PolicySource, opts Op
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+
+	if racing, ok := src.(RacingSource); ok {
+		return runRacing(ctx, exp, racing, opts)
+	}
+	if racing, ok := src.(*RacingSource); ok {
+		return runRacing(ctx, exp, *racing, opts)
 	}
 
 	var (

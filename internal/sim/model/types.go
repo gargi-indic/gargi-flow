@@ -214,9 +214,9 @@ const DefaultCVaRAlpha = 0.05
 type Policies struct {
 	// Search is "exhaustive" (enumerate every reduced deterministic policy),
 	// "exact" (solve for each world's optimal policy by backward
-	// induction), "grid" (every combination of the params of Policy) or
-	// "random" (Samples random draws of the params of Policy). Exactly one
-	// of Search and Files is set.
+	// induction), "grid" (every combination of the params of Policy),
+	// "random" (Samples random draws of the params of Policy) or
+	// "racing" (successive halving with paired confidence intervals).
 	Search string   `json:"search,omitempty"`
 	Files  []string `json:"files,omitempty"`
 	// Policy is the parameterized policy/v1 document that grid and random
@@ -229,6 +229,13 @@ type Policies struct {
 	// Seed seeds random search's draws; nil selects the experiment seed. It
 	// is only allowed with random search.
 	Seed *uint64 `json:"seed,omitempty"`
+
+	// Racing optimizer configuration (only allowed with search: racing):
+	MinRuns    int       `json:"min_runs,omitempty"`
+	MaxRuns    int       `json:"max_runs,omitempty"`
+	Factor     float64   `json:"factor,omitempty"`
+	Alpha      float64   `json:"alpha,omitempty"`
+	Candidates *Policies `json:"candidates,omitempty"`
 }
 
 // ArrivalsSpec specifies the arrival process for Mode B simulation.

@@ -13,7 +13,7 @@ func TestParseExperiment_Search(t *testing.T) {
 	doc := func(search string) []byte {
 		return []byte("apiVersion: experiment/v1\nmodel: ./sim.yaml\npolicies: {search: " + search + "}\nevaluator: exact\nruns: 1\nseed: 1\n")
 	}
-	for _, search := range []string{"exhaustive", "exact"} {
+	for _, search := range []string{"exhaustive", "exact", "racing"} {
 		exp, err := ParseExperiment(doc(search), engine.FormatYAML)
 		require.NoError(t, err, search)
 		require.Equal(t, search, exp.Policies.Search)
@@ -29,7 +29,7 @@ func TestParseExperiment_Search(t *testing.T) {
 		var ve *engine.ValidationErrors
 		require.ErrorAs(t, err, &ve, search)
 		require.Equal(t, []engine.ValidationIssue{
-			{Path: "$.policies.search", Code: engine.CodeInvalidValue, Message: "search must be exhaustive, exact, grid or random"},
+			{Path: "$.policies.search", Code: engine.CodeInvalidValue, Message: "search must be exhaustive, exact, grid, random or racing"},
 		}, ve.Issues(), search)
 	}
 }
@@ -92,6 +92,80 @@ func TestParseExperiment_GridRandom(t *testing.T) {
 			{Path: "$.policies.samples", Code: engine.CodeInvalidType, Message: "expected integer"},
 			{Path: "$.policies.samples", Code: engine.CodeInvalidValue, Message: "search: random requires samples >= 1"},
 			{Path: "$.policies.seed", Code: engine.CodeInvalidValue, Message: "seed must be >= 0"},
+		}},
+	}
+	for _, tt := range tests {
+		_, err := ParseExperiment(doc(tt.policies), engine.FormatYAML)
+		var ve *engine.ValidationErrors
+		require.ErrorAs(t, err, &ve, tt.policies)
+		require.Equal(t, tt.want, ve.Issues(), tt.policies)
+	}
+}
+
+// TestParseExperiment_Racing checks the racing optimizer configuration
+// and candidate sources.
+func TestParseExperiment_Racing(t *testing.T) {
+	doc := func(policies string) []byte {
+		return []byte("apiVersion: experiment/v1\nmodel: ./sim.yaml\npolicies: " + policies + "\nruns: 100\nseed: 42\n")
+	}
+
+	// Direct policy
+	exp, err := ParseExperiment(doc("{search: racing, policy: ./theta.yaml}"), engine.FormatYAML)
+	require.NoError(t, err)
+	require.Equal(t, Policies{Search: "racing", Policy: "./theta.yaml"}, exp.Policies)
+
+	// Direct files
+	exp, err = ParseExperiment(doc("{search: racing, files: [./p1.yaml, ./p2.yaml]}"), engine.FormatYAML)
+	require.NoError(t, err)
+	require.Equal(t, Policies{Search: "racing", Files: []string{"./p1.yaml", "./p2.yaml"}}, exp.Policies)
+
+	// Candidates object: grid
+	exp, err = ParseExperiment(doc("{search: racing, min_runs: 10, max_runs: 100, factor: 2.5, alpha: 0.01, candidates: {search: grid, policy: ./theta.yaml}}"), engine.FormatYAML)
+	require.NoError(t, err)
+	require.Equal(t, Policies{
+		Search:  "racing",
+		MinRuns: 10,
+		MaxRuns: 100,
+		Factor:  2.5,
+		Alpha:   0.01,
+		Candidates: &Policies{
+			Search: "grid",
+			Policy: "./theta.yaml",
+		},
+	}, exp.Policies)
+
+	// Candidates object: exhaustive
+	exp, err = ParseExperiment(doc("{search: racing, candidates: {search: exhaustive}}"), engine.FormatYAML)
+	require.NoError(t, err)
+	require.Equal(t, Policies{
+		Search: "racing",
+		Candidates: &Policies{
+			Search: "exhaustive",
+		},
+	}, exp.Policies)
+
+	tests := []struct {
+		policies string
+		want     []engine.ValidationIssue
+	}{
+		{"{search: racing, min_runs: -1}", []engine.ValidationIssue{
+			{Path: "$.policies.min_runs", Code: engine.CodeInvalidValue, Message: "min_runs must be >= 1"},
+		}},
+		{"{search: racing, min_runs: 50, max_runs: 10}", []engine.ValidationIssue{
+			{Path: "$.policies.min_runs", Code: engine.CodeInvalidValue, Message: "min_runs must be <= max_runs"},
+		}},
+		{"{search: racing, factor: 0.5}", []engine.ValidationIssue{
+			{Path: "$.policies.factor", Code: engine.CodeInvalidValue, Message: "factor must be > 1"},
+		}},
+		{"{search: racing, alpha: 1.5}", []engine.ValidationIssue{
+			{Path: "$.policies.alpha", Code: engine.CodeInvalidValue, Message: "alpha must be in (0, 1)"},
+		}},
+		{"{search: racing, policy: p.yaml, files: [a.yaml]}", []engine.ValidationIssue{
+			{Path: "$.policies", Code: engine.CodeInvalidValue, Message: "racing candidates must be specified via only one of candidates, policy, or files"},
+		}},
+		{"{search: grid, candidates: {search: exhaustive}}", []engine.ValidationIssue{
+			{Path: "$.policies.candidates", Code: engine.CodeInvalidValue, Message: "candidates is only allowed with search: racing"},
+			{Path: "$.policies.policy", Code: engine.CodeMissingRequired, Message: "search: grid requires policy"},
 		}},
 	}
 	for _, tt := range tests {

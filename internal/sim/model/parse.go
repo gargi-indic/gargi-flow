@@ -282,7 +282,9 @@ func validateExperiment(e *Experiment) error {
 		errs.Add("$.evaluator", engine.CodeInvalidValue, "invalid evaluator enum")
 	}
 	if e.Policies.Search != "" && len(e.Policies.Files) > 0 {
-		errs.Add("$.policies", engine.CodeInvalidValue, "policies must have exactly one of search or files")
+		if e.Policies.Search != "racing" {
+			errs.Add("$.policies", engine.CodeInvalidValue, "policies must have exactly one of search or files")
+		}
 	} else if e.Policies.Search == "" && len(e.Policies.Files) == 0 {
 		errs.Add("$.policies", engine.CodeInvalidValue, "policies must have exactly one of search or files")
 	}
@@ -305,29 +307,142 @@ func validateExperiment(e *Experiment) error {
 
 // validatePolicySearch checks policies.search and the fields that depend on
 // it: policy (grid and random only, required there), samples (random only,
-// required, >= 1) and seed (random only).
+// required, >= 1) and seed (random only), as well as racing parameters.
 func validatePolicySearch(p Policies, errs *engine.ValidationErrors) {
 	search := p.Search
 	switch search {
-	case "", "exhaustive", "exact", "grid", "random":
+	case "", "exhaustive", "exact", "grid", "random", "racing":
 	default:
-		errs.Add("$.policies.search", engine.CodeInvalidValue, "search must be exhaustive, exact, grid or random")
+		errs.Add("$.policies.search", engine.CodeInvalidValue, "search must be exhaustive, exact, grid, random or racing")
 	}
-	parameterized := search == "grid" || search == "random"
-	switch {
-	case parameterized && p.Policy == "":
-		errs.Add("$.policies.policy", engine.CodeMissingRequired, fmt.Sprintf("search: %s requires policy", search))
-	case !parameterized && p.Policy != "":
-		errs.Add("$.policies.policy", engine.CodeInvalidValue, "policy is only allowed with search: grid or random")
+
+	if search != "racing" {
+		if p.Candidates != nil {
+			errs.Add("$.policies.candidates", engine.CodeInvalidValue, "candidates is only allowed with search: racing")
+		}
+		if p.MinRuns != 0 {
+			errs.Add("$.policies.min_runs", engine.CodeInvalidValue, "min_runs is only allowed with search: racing")
+		}
+		if p.MaxRuns != 0 {
+			errs.Add("$.policies.max_runs", engine.CodeInvalidValue, "max_runs is only allowed with search: racing")
+		}
+		if p.Factor != 0 {
+			errs.Add("$.policies.factor", engine.CodeInvalidValue, "factor is only allowed with search: racing")
+		}
+		if p.Alpha != 0 {
+			errs.Add("$.policies.alpha", engine.CodeInvalidValue, "alpha is only allowed with search: racing")
+		}
+
+		parameterized := search == "grid" || search == "random"
+		switch {
+		case parameterized && p.Policy == "":
+			errs.Add("$.policies.policy", engine.CodeMissingRequired, fmt.Sprintf("search: %s requires policy", search))
+		case !parameterized && p.Policy != "":
+			errs.Add("$.policies.policy", engine.CodeInvalidValue, "policy is only allowed with search: grid or random")
+		}
+		switch {
+		case search == "random" && p.Samples < 1:
+			errs.Add("$.policies.samples", engine.CodeInvalidValue, "search: random requires samples >= 1")
+		case search != "random" && p.Samples != 0:
+			errs.Add("$.policies.samples", engine.CodeInvalidValue, "samples is only allowed with search: random")
+		}
+		if search != "random" && p.Seed != nil {
+			errs.Add("$.policies.seed", engine.CodeInvalidValue, "seed is only allowed with search: random")
+		}
+		return
 	}
-	switch {
-	case search == "random" && p.Samples < 1:
-		errs.Add("$.policies.samples", engine.CodeInvalidValue, "search: random requires samples >= 1")
-	case search != "random" && p.Samples != 0:
-		errs.Add("$.policies.samples", engine.CodeInvalidValue, "samples is only allowed with search: random")
+
+	validateRacing(p, errs)
+}
+
+func validateRacing(p Policies, errs *engine.ValidationErrors) {
+	if p.MinRuns < 0 || (p.MinRuns != 0 && p.MinRuns < 1) {
+		errs.Add("$.policies.min_runs", engine.CodeInvalidValue, "min_runs must be >= 1")
 	}
-	if search != "random" && p.Seed != nil {
-		errs.Add("$.policies.seed", engine.CodeInvalidValue, "seed is only allowed with search: random")
+	if p.MaxRuns < 0 || (p.MaxRuns != 0 && p.MaxRuns < 1) {
+		errs.Add("$.policies.max_runs", engine.CodeInvalidValue, "max_runs must be >= 1")
+	}
+	if p.MinRuns > 0 && p.MaxRuns > 0 && p.MinRuns > p.MaxRuns {
+		errs.Add("$.policies.min_runs", engine.CodeInvalidValue, "min_runs must be <= max_runs")
+	}
+	if p.Factor != 0 && p.Factor <= 1 {
+		errs.Add("$.policies.factor", engine.CodeInvalidValue, "factor must be > 1")
+	}
+	if p.Alpha != 0 && (p.Alpha <= 0 || p.Alpha >= 1) {
+		errs.Add("$.policies.alpha", engine.CodeInvalidValue, "alpha must be in (0, 1)")
+	}
+
+	sources := 0
+	if p.Candidates != nil {
+		sources++
+	}
+	if p.Policy != "" {
+		sources++
+	}
+	if len(p.Files) > 0 {
+		sources++
+	}
+	if sources > 1 {
+		errs.Add("$.policies", engine.CodeInvalidValue, "racing candidates must be specified via only one of candidates, policy, or files")
+	}
+
+	if p.Candidates != nil {
+		c := *p.Candidates
+		switch c.Search {
+		case "", "exhaustive", "grid", "random":
+		default:
+			errs.Add("$.policies.candidates.search", engine.CodeInvalidValue, "candidates search must be exhaustive, grid or random")
+		}
+		if c.Search != "" && len(c.Files) > 0 {
+			errs.Add("$.policies.candidates", engine.CodeInvalidValue, "candidates must have exactly one of search or files")
+		} else if c.Search == "" && len(c.Files) == 0 {
+			errs.Add("$.policies.candidates", engine.CodeInvalidValue, "candidates must have exactly one of search or files")
+		}
+		param := c.Search == "grid" || c.Search == "random"
+		switch {
+		case param && c.Policy == "":
+			errs.Add("$.policies.candidates.policy", engine.CodeMissingRequired, fmt.Sprintf("search: %s requires policy", c.Search))
+		case !param && c.Policy != "":
+			errs.Add("$.policies.candidates.policy", engine.CodeInvalidValue, "policy is only allowed with search: grid or random")
+		}
+		switch {
+		case c.Search == "random" && c.Samples < 1:
+			errs.Add("$.policies.candidates.samples", engine.CodeInvalidValue, "search: random requires samples >= 1")
+		case c.Search != "random" && c.Samples != 0:
+			errs.Add("$.policies.candidates.samples", engine.CodeInvalidValue, "samples is only allowed with search: random")
+		}
+		if c.Search != "random" && c.Seed != nil {
+			errs.Add("$.policies.candidates.seed", engine.CodeInvalidValue, "seed is only allowed with search: random")
+		}
+		if c.Candidates != nil {
+			errs.Add("$.policies.candidates.candidates", engine.CodeInvalidValue, "candidates cannot be nested")
+		}
+		if c.MinRuns != 0 {
+			errs.Add("$.policies.candidates.min_runs", engine.CodeInvalidValue, "min_runs is only allowed on top-level racing search")
+		}
+		if c.MaxRuns != 0 {
+			errs.Add("$.policies.candidates.max_runs", engine.CodeInvalidValue, "max_runs is only allowed on top-level racing search")
+		}
+		if c.Factor != 0 {
+			errs.Add("$.policies.candidates.factor", engine.CodeInvalidValue, "factor is only allowed on top-level racing search")
+		}
+		if c.Alpha != 0 {
+			errs.Add("$.policies.candidates.alpha", engine.CodeInvalidValue, "alpha is only allowed on top-level racing search")
+		}
+	} else if p.Policy != "" {
+		if p.Samples < 0 {
+			errs.Add("$.policies.samples", engine.CodeInvalidValue, "samples must be >= 1")
+		}
+		if p.Samples == 0 && p.Seed != nil {
+			errs.Add("$.policies.seed", engine.CodeInvalidValue, "seed is only allowed with search: random")
+		}
+	} else {
+		if p.Samples != 0 {
+			errs.Add("$.policies.samples", engine.CodeInvalidValue, "samples is only allowed with search: random")
+		}
+		if p.Seed != nil {
+			errs.Add("$.policies.seed", engine.CodeInvalidValue, "seed is only allowed with search: random")
+		}
 	}
 }
 

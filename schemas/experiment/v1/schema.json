@@ -30,8 +30,8 @@
       "properties": {
         "search": {
           "type": "string",
-          "enum": ["exhaustive", "exact", "grid", "random"],
-          "description": "exhaustive enumerates every reduced deterministic policy; exact solves each world's optimal table policy by backward induction over information sets (discrete, perfect-recall models); grid evaluates every combination of the params of policy; random evaluates samples random draws of them"
+          "enum": ["exhaustive", "exact", "grid", "random", "racing"],
+          "description": "exhaustive enumerates every reduced deterministic policy; exact solves each world's optimal table policy by backward induction over information sets (discrete, perfect-recall models); grid evaluates every combination of the params of policy; random evaluates samples random draws of them; racing evaluates candidate policies with successive halving and paired confidence intervals"
         },
         "files": {
           "type": "array",
@@ -50,6 +50,53 @@
           "type": "integer",
           "minimum": 0,
           "description": "Seed of the random draws of search: random (default: the experiment seed); forbidden otherwise"
+        },
+        "min_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Initial number of runs per candidate policy in racing search"
+        },
+        "max_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of runs per candidate policy in racing search"
+        },
+        "factor": {
+          "type": "number",
+          "exclusiveMinimum": 1,
+          "description": "Run budget multiplier per successive halving round in racing search"
+        },
+        "alpha": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "description": "Significance level for paired difference confidence intervals in racing search"
+        },
+        "candidates": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Candidate policy source specification for racing search",
+          "properties": {
+            "search": {
+              "type": "string",
+              "enum": ["exhaustive", "grid", "random"]
+            },
+            "files": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "policy": {
+              "type": "string"
+            },
+            "samples": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       },
       "oneOf": [
@@ -60,6 +107,12 @@
         {
           "required": ["files"],
           "not": { "required": ["search"] }
+        },
+        {
+          "required": ["search", "files"],
+          "properties": {
+            "search": { "const": "racing" }
+          }
         }
       ],
       "allOf": [
@@ -68,20 +121,50 @@
             "required": ["search"],
             "properties": { "search": { "enum": ["grid", "random"] } }
           },
-          "then": { "required": ["policy"] },
-          "else": { "not": { "required": ["policy"] } }
+          "then": { "required": ["policy"] }
+        },
+        {
+          "if": {
+            "required": ["search"],
+            "properties": { "search": { "enum": ["exhaustive", "exact"] } }
+          },
+          "then": { "not": { "required": ["policy"] } }
         },
         {
           "if": {
             "required": ["search"],
             "properties": { "search": { "const": "random" } }
           },
-          "then": { "required": ["samples"] },
-          "else": {
+          "then": { "required": ["samples"] }
+        },
+        {
+          "if": {
+            "required": ["search"],
+            "properties": { "search": { "enum": ["exhaustive", "exact", "grid"] } }
+          },
+          "then": {
             "not": {
               "anyOf": [
                 { "required": ["samples"] },
                 { "required": ["seed"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "properties": { "search": { "const": "racing" } }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["candidates"] },
+                { "required": ["min_runs"] },
+                { "required": ["max_runs"] },
+                { "required": ["factor"] },
+                { "required": ["alpha"] }
               ]
             }
           }

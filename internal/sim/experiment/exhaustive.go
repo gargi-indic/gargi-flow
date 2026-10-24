@@ -56,10 +56,61 @@ func (e *CompiledExperiment) ExhaustiveSource() ExhaustiveSource {
 	return ExhaustiveSource{Worlds: e.Worlds, MaxPolicies: e.Def.MaxPolicies}
 }
 
+// RacingSource returns the experiment's RacingSource wrapping its candidate
+// policy source.
+func (e *CompiledExperiment) RacingSource() RacingSource {
+	return RacingSource{
+		Candidates: e.CandidateSource(),
+		MinRuns:    e.Def.Policies.MinRuns,
+		MaxRuns:    e.Def.Policies.MaxRuns,
+		Factor:     e.Def.Policies.Factor,
+		Alpha:      e.Def.Policies.Alpha,
+	}
+}
+
+// CandidateSource returns the underlying PolicySource for racing candidates.
+func (e *CompiledExperiment) CandidateSource() PolicySource {
+	p := e.Def.Policies
+	if p.Candidates != nil {
+		c := p.Candidates
+		switch c.Search {
+		case "exhaustive":
+			return ExhaustiveSource{Worlds: e.Worlds, MaxPolicies: e.Def.MaxPolicies}
+		case "grid":
+			return GridSource{Policy: e.Policy, MaxPolicies: e.Def.MaxPolicies}
+		case "random":
+			seed := e.Def.Seed
+			if c.Seed != nil {
+				seed = *c.Seed
+			}
+			return RandomSource{Policy: e.Policy, Samples: c.Samples, Seed: seed}
+		default:
+			if len(c.Files) > 0 {
+				return FilesSource{BaseDir: e.BaseDir, FS: e.FS, Files: c.Files}
+			}
+			return ExhaustiveSource{Worlds: e.Worlds, MaxPolicies: e.Def.MaxPolicies}
+		}
+	}
+	if p.Policy != "" {
+		if p.Samples > 0 {
+			seed := e.Def.Seed
+			if p.Seed != nil {
+				seed = *p.Seed
+			}
+			return RandomSource{Policy: e.Policy, Samples: p.Samples, Seed: seed}
+		}
+		return GridSource{Policy: e.Policy, MaxPolicies: e.Def.MaxPolicies}
+	}
+	if len(p.Files) > 0 {
+		return FilesSource{BaseDir: e.BaseDir, FS: e.FS, Files: p.Files}
+	}
+	return ExhaustiveSource{Worlds: e.Worlds, MaxPolicies: e.Def.MaxPolicies}
+}
+
 // PolicySource returns the experiment's policy source: an ExhaustiveSource
 // for policies.search: exhaustive, an ExactSource for policies.search:
-// exact, a GridSource for grid, a RandomSource for random, otherwise a
-// FilesSource.
+// exact, a GridSource for grid, a RandomSource for random, a RacingSource
+// for racing, otherwise a FilesSource.
 func (e *CompiledExperiment) PolicySource() PolicySource {
 	switch e.Def.Policies.Search {
 	case "exhaustive":
@@ -70,6 +121,8 @@ func (e *CompiledExperiment) PolicySource() PolicySource {
 		return e.GridSource()
 	case "random":
 		return e.RandomSource()
+	case "racing":
+		return e.RacingSource()
 	default:
 		return e.FilesSource()
 	}

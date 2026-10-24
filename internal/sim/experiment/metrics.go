@@ -50,6 +50,8 @@ type ReportSet struct {
 	PathHeatmap []report.PathHeatmap `json:"pathHeatmap,omitempty"`
 	// PolicyTree holds one entry per world, in experiment order.
 	PolicyTree []report.PolicyTree `json:"policyTree,omitempty"`
+	// Racing holds the elimination history and speedup of racing search.
+	Racing *RacingReport `json:"racing,omitempty"`
 }
 
 // evalSpec lists what is extracted from every run record of an
