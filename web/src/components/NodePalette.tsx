@@ -6,6 +6,7 @@ const NODE_TYPES = [
   { type: 'wait_for_signal', label: 'Wait for Signal', description: 'Pauses execution until a signal is received' },
   { type: 'sub_graph', label: 'Sub Graph', description: 'Executes a child graph' },
   { type: 'http_call', label: 'HTTP Call', description: 'Makes an HTTP request' },
+  { type: 'decision', label: 'Decision', description: 'Chooses one option; simulated by a policy' },
 ];
 
 export const NodePalette: React.FC = () => {
