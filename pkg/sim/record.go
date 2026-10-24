@@ -61,6 +61,13 @@ type RunRecord struct {
 	Edges []int `json:"-"`
 }
 
+// ResourceMetric describes the operational metrics for a single shared resource.
+type ResourceMetric struct {
+	Utilization     float64 `json:"utilization"`
+	MeanQueueLength float64 `json:"meanQueueLength"`
+	MaxQueueLength  int     `json:"maxQueueLength"`
+}
+
 // ReplicationRecord stores the outcome of a Mode B simulation replication across all arrivals.
 type ReplicationRecord struct {
 	// World is the identifier of the simulated world.
@@ -77,12 +84,30 @@ type ReplicationRecord struct {
 	Completed int `json:"completed"`
 	// Abandoned is the number of entities that abandoned due to patience/timeout.
 	Abandoned int `json:"abandoned"`
+	// Throughput is the number of completed entities per second.
+	Throughput float64 `json:"throughput"`
 	// MeanQueueWait is the average queue wait time across all arrived entities.
 	MeanQueueWait time.Duration `json:"meanQueueWait"`
 	// MaxQueueWait is the maximum queue wait time observed for any entity.
 	MaxQueueWait time.Duration `json:"maxQueueWait"`
+	// MeanCycleTime is the average time from arrival to terminal exit.
+	MeanCycleTime time.Duration `json:"meanCycleTime"`
+	// MaxCycleTime is the maximum cycle time observed.
+	MaxCycleTime time.Duration `json:"maxCycleTime"`
+	// WaitTimeQuantiles contains p50, p90, p95, and p99 queue wait times.
+	WaitTimeQuantiles map[string]time.Duration `json:"waitTimeQuantiles"`
+	// CycleTimeQuantiles contains p50, p90, p95, and p99 cycle times.
+	CycleTimeQuantiles map[string]time.Duration `json:"cycleTimeQuantiles"`
 	// ResourceUtil maps each resource name to its time-averaged utilization fraction (0.0 to 1.0).
 	ResourceUtil map[string]float64 `json:"resourceUtil"`
+	// ResourceMetrics maps each resource name to its queueing operational metrics.
+	ResourceMetrics map[string]ResourceMetric `json:"resourceMetrics"`
+	// Objective is the overall evaluated objective value of this replication.
+	Objective float64 `json:"objective"`
+	// Constraints maps constraint names to whether they were satisfied in this replication.
+	Constraints map[string]bool `json:"constraints,omitempty"`
+	// Metrics maps every metric declared by the model to its value in this replication.
+	Metrics map[string]float64 `json:"metrics,omitempty"`
 	// Entities contains the per-entity RunRecord for each arrived entity.
 	Entities []RunRecord `json:"entities,omitempty"`
 }
