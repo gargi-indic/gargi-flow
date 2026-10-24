@@ -53,8 +53,17 @@ func TestModeB_MMcQueueAnalyticMatch(t *testing.T) {
 		},
 		Objective: model.Objective{
 			Name:     "utilization",
-			Value:    "1.0",
+			Value:    "resource['servers'].utilization",
 			Maximize: "mean",
+			Constraints: map[string]string{
+				"throughput_ok": "throughput >= 1.9",
+			},
+		},
+		Metrics: map[string]string{
+			"throughput":      "throughput",
+			"mean_queue_len":  "resource['servers'].queue_length",
+			"mean_wait":       "mean_wait",
+			"mean_cycle_time": "mean_cycle_time",
 		},
 	}
 
@@ -79,12 +88,18 @@ func TestModeB_MMcQueueAnalyticMatch(t *testing.T) {
 	}
 	postWarmupMeanWait := float64(postWarmupTotalWait) / float64(len(rec.Entities)-warmup) / float64(time.Second)
 
-	theoreticalMeanWait := 4.0 / 9.0 // 0.4444...
+	theoreticalMeanWait := 4.0 / 9.0                  // 0.4444...
+	theoreticalQueueLen := 2.0 * theoreticalMeanWait  // Little's law L_q = lambda * W_q
+	theoreticalCycleTime := theoreticalMeanWait + 1.0 // W = W_q + 1/mu
+	theoreticalThroughput := 2.0                      // lambda
+	theoreticalRho := 2.0 / 3.0
 
 	t.Logf("Theoretical Wq:       %.4f s", theoreticalMeanWait)
 	t.Logf("Overall Empirical Wq: %.4f s", rec.MeanQueueWait.Seconds())
 	t.Logf("Steady-state Wq:      %.4f s", postWarmupMeanWait)
-	t.Logf("Resource util:        %v", rec.ResourceUtil)
+	t.Logf("Resource metrics:     %+v", rec.ResourceMetrics)
+	t.Logf("Throughput:           %.4f /s", rec.Throughput)
+	t.Logf("Mean cycle time:      %.4f s", rec.MeanCycleTime.Seconds())
 
 	// Verify steady-state queue wait time matches theoretical within 5%
 	relError := math.Abs(postWarmupMeanWait-theoreticalMeanWait) / theoreticalMeanWait
@@ -92,10 +107,31 @@ func TestModeB_MMcQueueAnalyticMatch(t *testing.T) {
 	require.Less(t, relError, 0.05, "empirical queue wait %.4fs should match theoretical %.4fs within 5%%", postWarmupMeanWait, theoreticalMeanWait)
 
 	// Also verify utilization matches rho = 2/3 = 0.6667 within 5%
-	serversUtil, ok := rec.ResourceUtil["servers"]
+	serversMetric, ok := rec.ResourceMetrics["servers"]
 	require.True(t, ok)
-	utilRelError := math.Abs(serversUtil-(2.0/3.0)) / (2.0 / 3.0)
-	require.Less(t, utilRelError, 0.05, "servers utilization %.4f should match theoretical 0.6667 within 5%%", serversUtil)
+	utilRelError := math.Abs(serversMetric.Utilization-theoreticalRho) / theoreticalRho
+	require.Less(t, utilRelError, 0.05, "servers utilization %.4f should match theoretical %.4f within 5%%", serversMetric.Utilization, theoreticalRho)
+
+	// Verify Little's law queue length matches theoretical within 5%
+	qlRelError := math.Abs(serversMetric.MeanQueueLength-theoreticalQueueLen) / theoreticalQueueLen
+	require.Less(t, qlRelError, 0.05, "mean queue length %.4f should match theoretical %.4f within 5%%", serversMetric.MeanQueueLength, theoreticalQueueLen)
+	require.Greater(t, serversMetric.MaxQueueLength, 1)
+
+	// Verify throughput matches lambda within 5%
+	tpRelError := math.Abs(rec.Throughput-theoreticalThroughput) / theoreticalThroughput
+	require.Less(t, tpRelError, 0.05, "throughput %.4f should match theoretical %.4f within 5%%", rec.Throughput, theoreticalThroughput)
+
+	// Verify mean cycle time matches theoretical within 5%
+	ctRelError := math.Abs(rec.MeanCycleTime.Seconds()-theoreticalCycleTime) / theoreticalCycleTime
+	require.Less(t, ctRelError, 0.05, "mean cycle time %.4f should match theoretical %.4f within 5%%", rec.MeanCycleTime.Seconds(), theoreticalCycleTime)
+
+	// Verify objective and constraints evaluation
+	require.InDelta(t, serversMetric.Utilization, rec.Objective, 1e-6)
+	require.True(t, rec.Constraints["throughput_ok"])
+	require.InDelta(t, rec.Throughput, rec.Metrics["throughput"], 1e-6)
+	require.InDelta(t, serversMetric.MeanQueueLength, rec.Metrics["mean_queue_len"], 1e-6)
+	require.InDelta(t, rec.MeanQueueWait.Seconds(), rec.Metrics["mean_wait"], 1e-6)
+	require.InDelta(t, rec.MeanCycleTime.Seconds(), rec.Metrics["mean_cycle_time"], 1e-6)
 }
 
 func TestModeB_Determinism(t *testing.T) {
