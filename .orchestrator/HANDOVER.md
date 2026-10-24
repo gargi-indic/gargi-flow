@@ -50,13 +50,13 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 
 **Epic #136 exit criterion verified:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a prompt, runs it, and extracts a Pareto set of policies, all verified by `TestCanary_AgentWalkthrough` and `TestCanaryGolden_ParetoSet`.
 
-## 4. Current state and immediate resume steps (2026-10-24, ~21:55 UTC)
+## 4. Current state and immediate resume steps (2026-10-24, ~22:35 UTC)
 0. **Epic #136 closed!** All 11 tasks merged, exit criteria verified, PR #211 squash-merged into `main` (`3731a2a`).
 1. **Active epic:** **#148 Simulation P2: coupled simulation, optimization and agents**.
    - Step 1: **#149** Kernel mode B: arrivals, shared resources and queues (`agent/jules` → fallback) — ✅ **merged** PR #212 (`500068f`), closed.
-   - Step 2: **#150** Queueing metrics: utilization, queue length, wait time, throughput (`agent/jules`) — ⏳ **active**.
-   - Step 3: **#151** Racing optimizer (successive halving with paired CIs) (`agent/claude`).
+   - Step 2: **#150** Queueing metrics: utilization, queue length, wait time, throughput (`agent/jules` → fallback) — ✅ **merged** PR #213 (`52ae08f`), closed.
+   - Step 3: **#151** Racing optimizer (successive halving with paired CIs) (`agent/claude`) — 🛠 **active**.
    - Step 4: **#152** Bayesian optimizer (TPE) (`agent/claude`, `needs-discussion`: in-house vs library).
    - Step 5: **#153** Agent behaviors and policies (`agent/claude`, `needs-discussion`: provider and spend limits).
 2. **Next immediate action:**
-   - Append detailed specification to Issue #150 and dispatch to Jules via `.orchestrator/jules.py start 150`. Check with Jules CLI and follow 30-minute fallback policy.
+   - Implement #151 Racing optimizer (successive halving with paired CRN confidence intervals over any `PolicySource`, elimination history reporting, and acceptance test on loan and canary with >= 3x fewer runs).
