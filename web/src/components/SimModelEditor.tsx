@@ -2,8 +2,12 @@ import { useState, useMemo } from 'react';
 import { validateModel } from '../sim/validate';
 import type { SimDocs, ValidationIssue } from '../sim/validate';
 import { parseGraph, setDecision, addDecisionNode, nodeIdForPath } from '../sim/graphDoc';
+import { parseSim } from '../sim/simDoc';
 import SimGraphView from './SimGraphView';
 import DecisionEditor from './DecisionEditor';
+import WorldsPanel from './WorldsPanel';
+import LatentsPanel from './LatentsPanel';
+import ObjectivePanel from './ObjectivePanel';
 
 type DocName = keyof SimDocs;
 
@@ -25,6 +29,7 @@ export default function SimModelEditor({ docs, onChange }: Props) {
   const [busy, setBusy] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [newDecisionId, setNewDecisionId] = useState('');
+  const [panelsCollapsed, setPanelsCollapsed] = useState(false);
 
   const handleValidate = async () => {
     setBusy(true);
@@ -52,6 +57,7 @@ export default function SimModelEditor({ docs, onChange }: Props) {
   };
 
   const parsedGraph = useMemo(() => parseGraph(docs.graph), [docs.graph]);
+  const parsedSim = useMemo(() => parseSim(docs.sim), [docs.sim]);
 
   const { nodeErrors, globalIssues } = useMemo(() => {
     const nodeMap: Record<string, string[]> = {};
@@ -142,6 +148,34 @@ export default function SimModelEditor({ docs, onChange }: Props) {
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {!(parsedSim instanceof Error) && (
+          <div style={{ width: panelsCollapsed ? '40px' : '400px', borderRight: '1px solid #ccc', display: 'flex', flexDirection: 'column', transition: 'width 0.2s', overflowY: 'auto', overflowX: 'hidden' }}>
+            <div style={{ padding: '8px', background: '#f5f5f5', borderBottom: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {!panelsCollapsed && <strong>Model Panels</strong>}
+              <button onClick={() => setPanelsCollapsed(!panelsCollapsed)}>{panelsCollapsed ? '>>' : '<<'}</button>
+            </div>
+            {!panelsCollapsed && (
+              <>
+                <WorldsPanel
+                  text={docs.sim}
+                  worlds={parsedSim.worlds}
+                  onChange={(newSimText) => onChange({ ...docs, sim: newSimText })}
+                />
+                <LatentsPanel
+                  text={docs.sim}
+                  latents={parsedSim.latents}
+                  onChange={(newSimText) => onChange({ ...docs, sim: newSimText })}
+                />
+                <ObjectivePanel
+                  text={docs.sim}
+                  objective={parsedSim.objective}
+                  onChange={(newSimText) => onChange({ ...docs, sim: newSimText })}
+                />
+              </>
+            )}
+          </div>
+        )}
+
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, display: 'flex', borderBottom: '1px solid #ccc' }}>
             <textarea
