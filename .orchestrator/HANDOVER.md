@@ -1,6 +1,6 @@
 # Orchestrator Handover: gargi-flow
 
-Snapshot refreshed on **2026-10-24 (~16:05 UTC)**, mid-**Epic #136 (Simulation P1)**: 8 of 11 top-level tasks closed (#137–#143, #145), #144 at 2/3 with #195 in progress on Jules, then #146 (#204–#206) and #147.
+Snapshot refreshed on **2026-10-24 (~16:42 UTC)**, mid-**Epic #136 (Simulation P1)**: 9 of 11 top-level tasks closed (#137–#145), #146 at 1/3 with #204 in progress on Jules, then #205 and #206, and #147.
 The **live** state is in issue **#67** (body tables + latest comments) and on `main`. #67 overrides this file wherever they differ.
 
 ---
@@ -43,26 +43,27 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 | 5 | #141 SimulationService API, job runner, memory store | ✅ | Opus (resumed from a dead agent's WIP) · #184 |
 | 6 | #142 Postgres ExperimentStore | ✅ | Opus · #188 |
 | 7 | #143 CLI server mode, reports, policy explain | ✅ closed | #185 Sonnet #189, #186 Sonnet #191, #187 Sonnet #192 |
-| 8 | #144 MCP server (go-sdk v1.8.0) | 🛠 2/3 | #193 **Jules** #200, #194 Jules FAILED → Opus #202, **#195 Jules in progress** |
+| 8 | #144 MCP server (go-sdk v1.8.0) | ✅ closed | #193 **Jules** #200, #194 Jules FAILED → Opus #202, #195 Jules FAILED → Opus #207 |
 | 9 | #145 canvas model editor, Decision node, panels | ✅ closed | #196 Sonnet #199, #197 **Jules** #201, #198 **Jules** #203 |
-| 10 | #146 canvas Simulate + Results | ⏳ split | #204 → #205 (acceptance) → #206; Jules, after #195 |
+| 10 | #146 canvas Simulate + Results | 🛠 split | #204 in progress on Jules, then #205 (acceptance) → #206 |
 | 11 | #147 canary rollout template, golden test, agent walkthrough | ⏳ | depends on #144 and #146; no spec yet |
 
 **Epic #136 exit criterion:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a natural-language prompt, runs it, and returns a Pareto set of policies, all visible on the canvas.
 
-## 4. Current state and immediate resume steps (2026-10-24, ~16:05 UTC)
-0. **UPDATE 16:12 UTC: the #195 Jules session ended `FAILED`, with no PR.** The next action is the fallback below: pull its patch with `npx @google/jules remote pull --session 12797155702259329108 > /tmp/jules195.patch` (if the CLI resets, use the last REST change set), then give #195 to an **Opus** sub-agent (worktree isolation, from current `main`). Paste the full issue text into a file for its brief and pass the patch **as reference only**. The patch has `experiments.go`, `prompts.go`, server registration and `RunBundle`, but no tests or docs, plus about 10 `patch_*.diff` scratch files. Then continue with the queue in item 2. Jules is free, so #204 can start on Jules in parallel: it is `web/` only and doesn't overlap #195.
-1. **Previously active Jules session:** #195 (MCP part 3: `RunBundle`, run/report/compare/explain/sweep tools, P3 stubs, `model_this_decision` prompt, `docs/simulation/mcp.md`) in session `12797155702259329108`.
-   - Plan approved at 15:13 with a detailed proceed message.
-   - At about 50 min the session was still alive (the CLI showed it active within seconds), but slow. It had `experiments.go`, `prompts.go`, server registration and `RunBundle`, but **no tests or docs yet**, plus ~8 `patch_*.diff` scratch files.
+## 4. Current state and immediate resume steps (2026-10-24, ~16:42 UTC)
+0. **#195 merged via PR #207; #144 complete.** The Go MCP SDK v1.8.0 server is complete with model workspace repair loop, run/report/analysis tools, `model_this_decision` prompt, and acceptance tests. `main` is at `e628a59`.
+1. **Active Jules session:** #204 (Simulate mode, #146 part 1/3) in session `2683794682960896782`.
+   - Plan approved at 16:18 UTC.
+   - Jules has created `web/e2e/fixtures/loan-report.json`, `web/src/sim/experiments.ts`, `web/src/components/SimulatePanel.tsx`, `web/src/components/SimModelEditor.tsx`, and `web/e2e/sim-simulate.spec.ts`.
    - **Resume:**
-     - Run `.orchestrator/checkin.sh 12797155702259329108 1 195`.
-     - If Jules opens a PR, review it locally. Require deletion of every `patch_*.diff`, and check that the acceptance test asserts 460.0 / 202.525 and the base best policy `exhaustive-b1b8bd20353bca7f`.
-     - If the session `FAILED`, or misses 2 check-ins, pull its patch (CLI `remote pull`, or the last REST change set) and give #195 to an **Opus** sub-agent with the patch as reference only.
-2. **Queue after #195 (one Jules session at a time):**
-   - #204, #205 and #206 (specs on #204/#205; #206 needs its full spec written first).
-   - Then #147, which needs a spec. It is the epic exit: the canary-rollout template under `examples/simulation/canary/` plus the MCP template, a golden test, and a walkthrough that drives MCP end to end. The canvas must show the Pareto set.
-3. **No open PRs.** `main` is at `32728ae`.
+     - Run `.orchestrator/checkin.sh 2683794682960896782 1 204`.
+     - When Jules opens a PR, review it locally. Require deletion of any `patch_*.py` / `test-results/` scratch files. Check Playwright test and web checks.
+     - Squash-merge into `main`, tick #204's boxes, update #67, and start #205 on Jules.
+2. **Queue after #204 (one Jules session at a time):**
+   - #205 (Results overlay: policy tree per world, switcher, heatmap; acceptance test). Spec is on #205.
+   - #206 (analysis panels, compare, replay). Needs its spec written first.
+   - Then #147 (epic exit: canary-rollout template, golden test, agent walkthrough). Spec needed.
+3. **No open PRs.** `main` is at `e628a59`.
 4. **Open follow-ups**, logged in #67, none blocking:
    - Generate OpenAPI 3 types for `web/` so openapi-fetch types the sim routes; #196 used a cast.
    - Add `test-results/` and `playwright-report/` to `.gitignore`.
