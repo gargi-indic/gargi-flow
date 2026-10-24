@@ -264,6 +264,59 @@ const (
 	statusSucceeded = statusPrefix + "SUCCEEDED"
 )
 
+// RunBundle runs the given experiment document against an in-memory model bundle
+// on the server.
+func (r *Remote) RunBundle(ctx context.Context, b sim.ModelBundle, definition []byte, format string, opts RunOptions) (*RunResult, error) {
+	policies := make(map[string]string, len(b.Policies))
+	for k, v := range b.Policies {
+		policies[k] = string(v)
+	}
+	saved, err := r.do(ctx, http.MethodPost, "/v1/models", map[string]any{
+		"sim": string(b.Sim), "graph": string(b.Graph), "policies": policies, "format": b.Format,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var saveResp struct {
+		Model struct {
+			ID      string `json:"id"`
+			Version string `json:"version"`
+		} `json:"model"`
+	}
+	if err := json.Unmarshal(saved, &saveResp); err != nil || saveResp.Model.ID == "" {
+		return nil, fmt.Errorf("simbackend: POST /v1/models: unexpected response %q", saved)
+	}
+
+	created, err := r.do(ctx, http.MethodPost, "/v1/experiments", map[string]any{
+		"model":      map[string]any{"id": saveResp.Model.ID, "version": saveResp.Model.Version},
+		"experiment": string(definition),
+		"format":     format,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var createResp struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(created, &createResp); err != nil || createResp.ID == "" {
+		return nil, fmt.Errorf("simbackend: POST /v1/experiments: unexpected response %q", created)
+	}
+	id := createResp.ID
+
+	if err := r.follow(ctx, id, opts.Progress); err != nil {
+		return nil, fmt.Errorf("experiment %s: %w", id, err)
+	}
+	body, err := r.Report(ctx, id, "summary")
+	if err != nil {
+		return nil, fmt.Errorf("experiment %s: %w", id, err)
+	}
+	var rep experiment.Report
+	if err := json.Unmarshal(body, &rep); err != nil {
+		return nil, fmt.Errorf("simbackend: decoding summary report of experiment %s: %w", id, err)
+	}
+	return &RunResult{ExperimentID: id, Report: &rep}, nil
+}
+
 // RunExperiment uploads the model bundle the experiment at path names (the
 // sim document, its graph and the policy files the experiment lists), creates
 // the experiment on the server, follows its progress over SSE and returns the
@@ -291,7 +344,12 @@ func (r *Remote) RunExperiment(ctx context.Context, path string, opts RunOptions
 	if err != nil {
 		return nil, err
 	}
-	docs.policies = map[string]string{}
+	b := sim.ModelBundle{
+		Sim:      []byte(docs.sim),
+		Graph:    []byte(docs.graph),
+		Policies: make(map[string][]byte),
+		Format:   string(docs.format),
+	}
 	policyPaths := append([]string(nil), exp.Policies.Files...)
 	if exp.Policies.Policy != "" {
 		policyPaths = append(policyPaths, exp.Policies.Policy)
@@ -301,53 +359,9 @@ func (r *Remote) RunExperiment(ctx context.Context, path string, opts RunOptions
 		if err != nil {
 			return nil, err
 		}
-		docs.policies[filepath.Base(p)] = string(data)
+		b.Policies[filepath.Base(p)] = data
 	}
-
-	saved, err := r.do(ctx, http.MethodPost, "/v1/models", map[string]any{
-		"sim": docs.sim, "graph": docs.graph, "policies": docs.policies, "format": string(docs.format),
-	})
-	if err != nil {
-		return nil, err
-	}
-	var saveResp struct {
-		Model struct {
-			ID      string `json:"id"`
-			Version string `json:"version"`
-		} `json:"model"`
-	}
-	if err := json.Unmarshal(saved, &saveResp); err != nil || saveResp.Model.ID == "" {
-		return nil, fmt.Errorf("simbackend: POST /v1/models: unexpected response %q", saved)
-	}
-
-	created, err := r.do(ctx, http.MethodPost, "/v1/experiments", map[string]any{
-		"model":      map[string]any{"id": saveResp.Model.ID, "version": saveResp.Model.Version},
-		"experiment": string(expData),
-		"format":     string(expFormat),
-	})
-	if err != nil {
-		return nil, err
-	}
-	var createResp struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal(created, &createResp); err != nil || createResp.ID == "" {
-		return nil, fmt.Errorf("simbackend: POST /v1/experiments: unexpected response %q", created)
-	}
-	id := createResp.ID
-
-	if err := r.follow(ctx, id, opts.Progress); err != nil {
-		return nil, fmt.Errorf("experiment %s: %w", id, err)
-	}
-	body, err := r.Report(ctx, id, "summary")
-	if err != nil {
-		return nil, fmt.Errorf("experiment %s: %w", id, err)
-	}
-	var rep experiment.Report
-	if err := json.Unmarshal(body, &rep); err != nil {
-		return nil, fmt.Errorf("simbackend: decoding summary report of experiment %s: %w", id, err)
-	}
-	return &RunResult{ExperimentID: id, Report: &rep}, nil
+	return r.RunBundle(ctx, b, expData, string(expFormat), opts)
 }
 
 // follow reads the SSE stream of experiment id until its done event and

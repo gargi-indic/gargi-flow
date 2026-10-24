@@ -81,8 +81,10 @@ func NewServer(opts Options) *mcp.Server {
 	})
 
 	// Register the model workspace tools and resource.
-	ws := &workspaceServer{backend: opts.Backend, ws: newWorkspace()}
+	ws := &workspaceServer{backend: opts.Backend, ws: newWorkspace(), expStore: newExperimentsStore()}
 	ws.register(server)
+
+	registerPrompts(server)
 
 	// Register concrete schemas
 	for _, kind := range []string{"sim", "graph", "policy", "experiment"} {
@@ -188,6 +190,43 @@ func (s *workspaceServer) register(server *mcp.Server) {
 		Name:        "validate_model",
 		Description: "Validates a workspace model. Returns {errors: [{path, code, message, hint}]}.",
 	}, s.validateModel)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "run_experiment",
+		Description: "Runs an experiment/v1 document against a workspace model. Synchronous and potentially long-running.",
+	}, s.runExperiment)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_experiment",
+		Description: "Returns the summary of a stored experiment by ID.",
+	}, s.getExperiment)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_report",
+		Description: "Returns the full report or a specific section of a stored experiment by ID.",
+	}, s.getReport)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "explain_policy",
+		Description: "Returns the plain-text explanation of a policy document from a workspace model.",
+	}, s.explainPolicy)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "compare_policies",
+		Description: "Compares the top policies of a world from a stored experiment.",
+	}, s.comparePolicies)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "sweep_parameter",
+		Description: "Runs an experiment multiple times, sweeping a parameter over a list of values.",
+	}, s.sweepParameter)
+	destructiveTrue := true
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "deploy_policy",
+		Description: "Deploys a policy from a workspace model.",
+		Annotations: &mcp.ToolAnnotations{
+			DestructiveHint: &destructiveTrue,
+		},
+	}, s.deployPolicy)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "ingest_outcome",
+		Description: "Ingests an outcome for a model.",
+	}, s.ingestOutcome)
+
 	server.AddResourceTemplate(&mcp.ResourceTemplate{
 		URITemplate: modelURIPrefix + "{id}",
 		Name:        "Workspace model",

@@ -118,63 +118,70 @@ func readExample(t *testing.T, name string) map[string]any {
 
 type m = map[string]any
 
-func TestWorkspace_BuildLoanFromEmpty(t *testing.T) {
-	s := newWorkspaceSession(t)
-
-	created := mustOK(t, s, "create_model", m{"id": "loan", "template": "empty"})
-	require.Equal(t, "loan", created["id"])
-	require.Equal(t, []any{"graph.yaml", "sim.yaml"}, created["files"])
-
-	// The sim documents first: behaviors name nodes the graph does not have
-	// yet, so validation reports errors to repair.
-	res := patch(t, s, "loan",
-		m{"op": "set_world_param", "world": "base", "param": "p_bad", "value": 0.20},
-		m{"op": "set_world_param", "world": "base", "param": "loss", "value": 4000},
-		m{"op": "set_world_param", "world": "recession", "param": "p_bad", "value": 0.35},
-		m{"op": "set_world_param", "world": "recession", "param": "loss", "value": 6000},
-		m{"op": "set_latent", "name": "bad", "spec": m{"bernoulli": m{"p": "world.p_bad"}}},
-		m{"op": "set_behavior", "node": "ai_score", "spec": m{
+func loanSimOps() []m {
+	return []m{
+		{"op": "set_world_param", "world": "base", "param": "p_bad", "value": 0.20},
+		{"op": "set_world_param", "world": "base", "param": "loss", "value": 4000},
+		{"op": "set_world_param", "world": "recession", "param": "p_bad", "value": 0.35},
+		{"op": "set_world_param", "world": "recession", "param": "loss", "value": 6000},
+		{"op": "set_latent", "name": "bad", "spec": m{"bernoulli": m{"p": "world.p_bad"}}},
+		{"op": "set_behavior", "node": "ai_score", "spec": m{
 			"cost":   20,
 			"output": m{"band": m{"choice": m{"low": "latent.bad ? 0.3 : 0.9", "high": "latent.bad ? 0.7 : 0.1"}}},
 		}},
-		m{"op": "set_behavior", "node": "human_review", "spec": m{
+		{"op": "set_behavior", "node": "human_review", "spec": m{
 			"cost":     150,
 			"duration": "48h",
 			"abandon":  m{"p": "latent.bad ? 0.0 : 0.3"},
 			"output":   m{"result": m{"choice": m{"pass": "latent.bad ? 0.10 : 0.95", "fail": "latent.bad ? 0.90 : 0.05"}}},
 		}},
-		m{"op": "set_objective", "spec": m{
+		{"op": "set_objective", "spec": m{
 			"name":     "profit",
 			"value":    "-run.cost + (nodes.approve.status == 'Succeeded' ? (latent.bad ? -double(world.loss) : 1000.0) : 0.0)",
 			"maximize": "mean",
 		}},
-	)
-	require.NotEmpty(t, res.Errors)
+	}
+}
 
-	// Then the graph.
-	res = patch(t, s, "loan",
-		m{"op": "add_node", "id": "screen", "type": "decision"},
-		m{"op": "add_node", "id": "ai_score", "type": "http_call", "config": m{"url": "https://scoring.example.internal/v1/score", "method": "POST"}},
-		m{"op": "add_node", "id": "route", "type": "decision", "joinMode": "any_of"},
-		m{"op": "add_node", "id": "human_review", "type": "wait_for_signal", "config": m{"signal": "review_done"}},
-		m{"op": "add_node", "id": "final", "type": "decision"},
-		m{"op": "add_node", "id": "approve", "type": "passthrough", "joinMode": "any_of"},
-		m{"op": "add_node", "id": "reject", "type": "passthrough", "joinMode": "any_of"},
-		m{"op": "set_decision", "node": "screen", "options": []string{"score", "skip"}, "observes": []string{}},
-		m{"op": "set_decision", "node": "route", "options": []string{"approve", "reject", "review"}, "observes": []string{"screen.output.choice", "ai_score.output.band"}},
-		m{"op": "set_decision", "node": "final", "options": []string{"approve", "reject"}, "observes": []string{"screen.output.choice", "ai_score.output.band", "human_review.output.result"}},
-		m{"op": "add_edge", "from": "screen", "to": "ai_score", "condition": "upstream.output.choice == 'score'"},
-		m{"op": "add_edge", "from": "screen", "to": "route", "condition": "upstream.output.choice == 'skip'"},
-		m{"op": "add_edge", "from": "ai_score", "to": "route"},
-		m{"op": "add_edge", "from": "route", "to": "human_review", "condition": "upstream.output.choice == 'review'"},
-		m{"op": "add_edge", "from": "human_review", "to": "final"},
-		m{"op": "add_edge", "from": "route", "to": "approve", "condition": "upstream.output.choice == 'approve'"},
-		m{"op": "add_edge", "from": "final", "to": "approve", "condition": "upstream.output.choice == 'approve'"},
-		m{"op": "add_edge", "from": "route", "to": "reject", "condition": "upstream.output.choice == 'reject'"},
-		m{"op": "add_edge", "from": "final", "to": "reject", "condition": "upstream.output.choice == 'reject'"},
-	)
+func loanGraphOps() []m {
+	return []m{
+		{"op": "add_node", "id": "screen", "type": "decision"},
+		{"op": "add_node", "id": "ai_score", "type": "http_call", "config": m{"url": "https://scoring.example.internal/v1/score", "method": "POST"}},
+		{"op": "add_node", "id": "route", "type": "decision", "joinMode": "any_of"},
+		{"op": "add_node", "id": "human_review", "type": "wait_for_signal", "config": m{"signal": "review_done"}},
+		{"op": "add_node", "id": "final", "type": "decision"},
+		{"op": "add_node", "id": "approve", "type": "passthrough", "joinMode": "any_of"},
+		{"op": "add_node", "id": "reject", "type": "passthrough", "joinMode": "any_of"},
+		{"op": "set_decision", "node": "screen", "options": []string{"score", "skip"}, "observes": []string{}},
+		{"op": "set_decision", "node": "route", "options": []string{"approve", "reject", "review"}, "observes": []string{"screen.output.choice", "ai_score.output.band"}},
+		{"op": "set_decision", "node": "final", "options": []string{"approve", "reject"}, "observes": []string{"screen.output.choice", "ai_score.output.band", "human_review.output.result"}},
+		{"op": "add_edge", "from": "screen", "to": "ai_score", "condition": "upstream.output.choice == 'score'"},
+		{"op": "add_edge", "from": "screen", "to": "route", "condition": "upstream.output.choice == 'skip'"},
+		{"op": "add_edge", "from": "ai_score", "to": "route"},
+		{"op": "add_edge", "from": "route", "to": "human_review", "condition": "upstream.output.choice == 'review'"},
+		{"op": "add_edge", "from": "human_review", "to": "final"},
+		{"op": "add_edge", "from": "route", "to": "approve", "condition": "upstream.output.choice == 'approve'"},
+		{"op": "add_edge", "from": "final", "to": "approve", "condition": "upstream.output.choice == 'approve'"},
+		{"op": "add_edge", "from": "route", "to": "reject", "condition": "upstream.output.choice == 'reject'"},
+		{"op": "add_edge", "from": "final", "to": "reject", "condition": "upstream.output.choice == 'reject'"},
+	}
+}
+
+func buildLoanModel(t *testing.T, s *sdk_mcp.ClientSession, id string) {
+	t.Helper()
+	created := mustOK(t, s, "create_model", m{"id": id, "template": "empty"})
+	require.Equal(t, id, created["id"])
+	res := patch(t, s, id, loanSimOps()...)
+	require.NotEmpty(t, res.Errors)
+	res = patch(t, s, id, loanGraphOps()...)
 	require.Empty(t, res.Errors)
-	require.Empty(t, validate(t, s, "loan"))
+	require.Empty(t, validate(t, s, id))
+}
+
+func TestWorkspace_BuildLoanFromEmpty(t *testing.T) {
+	s := newWorkspaceSession(t)
+
+	buildLoanModel(t, s, "loan")
 
 	_, docs := readModel(t, s, "loan")
 	require.Equal(t, map[string]any{}, docs["policies"])
