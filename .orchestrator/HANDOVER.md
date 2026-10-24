@@ -51,7 +51,8 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 **Epic #136 exit criterion:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a natural-language prompt, runs it, and returns a Pareto set of policies, all visible on the canvas.
 
 ## 4. Current state and immediate resume steps (2026-10-24, ~16:05 UTC)
-1. **Active Jules session:** #195 (MCP part 3: `RunBundle`, run/report/compare/explain/sweep tools, P3 stubs, `model_this_decision` prompt, `docs/simulation/mcp.md`) in session `12797155702259329108`.
+0. **UPDATE 16:12 UTC: the #195 Jules session ended `FAILED`, with no PR.** The next action is the fallback below: pull its patch with `npx @google/jules remote pull --session 12797155702259329108 > /tmp/jules195.patch` (if the CLI resets, use the last REST change set), then give #195 to an **Opus** sub-agent (worktree isolation, from current `main`). Paste the full issue text into a file for its brief and pass the patch **as reference only**. The patch has `experiments.go`, `prompts.go`, server registration and `RunBundle`, but no tests or docs, plus about 10 `patch_*.diff` scratch files. Then continue with the queue in item 2. Jules is free, so #204 can start on Jules in parallel: it is `web/` only and doesn't overlap #195.
+1. **Previously active Jules session:** #195 (MCP part 3: `RunBundle`, run/report/compare/explain/sweep tools, P3 stubs, `model_this_decision` prompt, `docs/simulation/mcp.md`) in session `12797155702259329108`.
    - Plan approved at 15:13 with a detailed proceed message.
    - At about 50 min the session was still alive (the CLI showed it active within seconds), but slow. It had `experiments.go`, `prompts.go`, server registration and `RunBundle`, but **no tests or docs yet**, plus ~8 `patch_*.diff` scratch files.
    - **Resume:**
