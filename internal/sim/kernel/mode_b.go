@@ -79,18 +79,21 @@ type queuedEntityNode struct {
 }
 
 type modeBResource struct {
-	name         string
-	capacity     int
-	inUse        int
-	queue        []*queuedEntityNode
-	utilIntegral float64
-	lastUpdate   time.Time
+	name          string
+	capacity      int
+	inUse         int
+	queue         []*queuedEntityNode
+	utilIntegral  float64
+	queueIntegral float64
+	maxQueueLen   int
+	lastUpdate    time.Time
 }
 
 func (r *modeBResource) advance(now time.Time) {
 	if now.After(r.lastUpdate) {
 		dt := now.Sub(r.lastUpdate).Seconds()
 		r.utilIntegral += float64(r.inUse) * dt
+		r.queueIntegral += float64(len(r.queue)) * dt
 		r.lastUpdate = now
 	}
 }
@@ -286,6 +289,9 @@ func RunModeB(
 					patienceID: pID,
 				}
 				res.queue = append(res.queue, qNode)
+				if len(res.queue) > res.maxQueueLen {
+					res.maxQueueLen = len(res.queue)
+				}
 
 				if cb.Patience != nil {
 					pVal, err := evalCompiledParam(cb.Patience, ent.vars)
@@ -613,7 +619,13 @@ func RunModeB(
 		totalAbandoned int
 		totalWaitTime  time.Duration
 		maxWaitTime    time.Duration
+		totalCycleTime time.Duration
+		maxCycleTime   time.Duration
+		totalCost      float64
 		entityRecords  []sim.RunRecord
+
+		waitTimes  []time.Duration
+		cycleTimes []time.Duration
 	)
 
 	// Collect entity statistics in deterministic order (sorted by entity sequence)
@@ -642,6 +654,19 @@ func RunModeB(
 		if entWait > maxWaitTime {
 			maxWaitTime = entWait
 		}
+		waitTimes = append(waitTimes, entWait)
+
+		if ent.completed || ent.abandoned || ent.record.Abandoned {
+			cycle := ent.record.Duration
+			totalCycleTime += cycle
+			if cycle > maxCycleTime {
+				maxCycleTime = cycle
+			}
+			cycleTimes = append(cycleTimes, cycle)
+		}
+
+		totalCost += ent.record.Cost
+
 		ent.record.QueueWaitTime = entWait
 		entityRecords = append(entityRecords, ent.record)
 	}
@@ -651,28 +676,145 @@ func RunModeB(
 		meanWait = time.Duration(int64(totalWaitTime) / int64(totalArrivals))
 	}
 
+	meanCycle := time.Duration(0)
+	if len(cycleTimes) > 0 {
+		meanCycle = time.Duration(int64(totalCycleTime) / int64(len(cycleTimes)))
+	}
+
+	sort.Slice(waitTimes, func(i, j int) bool { return waitTimes[i] < waitTimes[j] })
+	sort.Slice(cycleTimes, func(i, j int) bool { return cycleTimes[i] < cycleTimes[j] })
+
+	quantile := func(times []time.Duration, p float64) time.Duration {
+		if len(times) == 0 {
+			return 0
+		}
+		idx := int(math.Ceil(float64(len(times))*p)) - 1
+		if idx < 0 {
+			idx = 0
+		} else if idx >= len(times) {
+			idx = len(times) - 1
+		}
+		return times[idx]
+	}
+
+	waitQuantiles := map[string]time.Duration{
+		"p50": quantile(waitTimes, 0.50),
+		"p90": quantile(waitTimes, 0.90),
+		"p95": quantile(waitTimes, 0.95),
+		"p99": quantile(waitTimes, 0.99),
+	}
+
+	cycleQuantiles := map[string]time.Duration{
+		"p50": quantile(cycleTimes, 0.50),
+		"p90": quantile(cycleTimes, 0.90),
+		"p95": quantile(cycleTimes, 0.95),
+		"p99": quantile(cycleTimes, 0.99),
+	}
+
+	throughput := float64(totalCompleted) / totalSimTime
+
 	utilMap := make(map[string]float64)
+	resMetrics := make(map[string]sim.ResourceMetric)
 	for name, res := range resources {
 		util := res.utilIntegral / (float64(res.capacity) * totalSimTime)
 		if util > 1.0 {
 			util = 1.0
 		}
-		utilMap[name] = math.Round(util*10000) / 10000
+		util = math.Round(util*10000) / 10000
+		utilMap[name] = util
+
+		meanQLen := res.queueIntegral / totalSimTime
+		resMetrics[name] = sim.ResourceMetric{
+			Utilization:     util,
+			MeanQueueLength: meanQLen,
+			MaxQueueLength:  res.maxQueueLen,
+		}
 	}
 
-	return sim.ReplicationRecord{
-		World:         world.ID,
-		PolicyID:      policy.ID(),
-		Replication:   opts.Replication,
-		Horizon:       horizon,
-		Arrivals:      totalArrivals,
-		Completed:     totalCompleted,
-		Abandoned:     totalAbandoned,
-		MeanQueueWait: meanWait,
-		MaxQueueWait:  maxWaitTime,
-		ResourceUtil:  utilMap,
-		Entities:      entityRecords,
-	}, nil
+	rec := sim.ReplicationRecord{
+		World:              world.ID,
+		PolicyID:           policy.ID(),
+		Replication:        opts.Replication,
+		Horizon:            horizon,
+		Arrivals:           totalArrivals,
+		Completed:          totalCompleted,
+		Abandoned:          totalAbandoned,
+		Throughput:         throughput,
+		MeanQueueWait:      meanWait,
+		MaxQueueWait:       maxWaitTime,
+		MeanCycleTime:      meanCycle,
+		MaxCycleTime:       maxCycleTime,
+		WaitTimeQuantiles:  waitQuantiles,
+		CycleTimeQuantiles: cycleQuantiles,
+		ResourceUtil:       utilMap,
+		ResourceMetrics:    resMetrics,
+		Entities:           entityRecords,
+	}
+
+	vars := map[string]any{
+		"world": wParams,
+	}
+
+	resVars := make(map[string]any)
+	for name, rm := range resMetrics {
+		resVars[name] = map[string]any{
+			"utilization":      rm.Utilization,
+			"queue_length":     rm.MeanQueueLength,
+			"max_queue_length": float64(rm.MaxQueueLength),
+		}
+	}
+	vars["resource"] = resVars
+	vars["throughput"] = throughput
+	vars["mean_wait"] = meanWait.Seconds()
+	vars["p95_wait"] = waitQuantiles["p95"].Seconds()
+	vars["mean_cycle_time"] = meanCycle.Seconds()
+	vars["run"] = map[string]any{
+		"duration":  totalSimTime,
+		"cost":      totalCost,
+		"abandoned": totalAbandoned > 0,
+	}
+
+	if m.CompiledObjective != nil {
+		val, _, err := m.CompiledObjective.Eval(vars)
+		if err != nil {
+			return sim.ReplicationRecord{}, fmt.Errorf("objective: %w", err)
+		}
+		obj, err := toFloat(val.Value())
+		if err != nil {
+			return sim.ReplicationRecord{}, fmt.Errorf("objective: %w", err)
+		}
+		rec.Objective = obj
+	}
+
+	rec.Constraints = make(map[string]bool, len(m.CompiledConstraints))
+	for name, prog := range m.CompiledConstraints {
+		val, _, err := prog.Eval(vars)
+		if err != nil {
+			return sim.ReplicationRecord{}, fmt.Errorf("constraint %q: %w", name, err)
+		}
+		ok, ok2 := val.Value().(bool)
+		if !ok2 {
+			return sim.ReplicationRecord{}, fmt.Errorf("constraint %q: expected bool, got %T", name, val.Value())
+		}
+		rec.Constraints[name] = ok
+	}
+
+	if len(m.CompiledMetrics) > 0 {
+		rec.Metrics = make(map[string]float64, len(m.CompiledMetrics))
+		for name, prog := range m.CompiledMetrics {
+			val, _, err := prog.Eval(vars)
+			if err != nil {
+				return sim.ReplicationRecord{}, fmt.Errorf("metric %q: %w", name, err)
+			}
+			fv, err := toFloat(val.Value())
+			if err != nil {
+				return sim.ReplicationRecord{}, fmt.Errorf("metric %q: %w", name, err)
+			}
+			rec.Metrics[name] = fv
+		}
+	}
+
+	return rec, nil
 }
 
 func (ent *modeBEntity) transition(_ context.Context, mutation engine.StateMutation) error {

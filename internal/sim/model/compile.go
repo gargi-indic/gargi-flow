@@ -476,7 +476,14 @@ func compileWithGraph(def *Sim, gDef *engine.GraphDefinition, reg *engine.Regist
 		errs.Add(engine.PathRoot.String(), engine.CodeInvalidValue, fmt.Sprintf("failed to create behavior env: %v", err))
 		return nil, sortedIssues(errs)
 	}
-	objectiveEnv, err := newEnv("world", "latent", "nodes", "run")
+	objectiveEnvOpts := []cel.EnvOption{
+		mapVar("world"), mapVar("latent"), mapVar("nodes"), mapVar("run"), mapVar("resource"),
+		cel.Variable("throughput", cel.DoubleType),
+		cel.Variable("mean_wait", cel.DoubleType),
+		cel.Variable("p95_wait", cel.DoubleType),
+		cel.Variable("mean_cycle_time", cel.DoubleType),
+	}
+	objectiveEnv, err := cel.NewEnv(objectiveEnvOpts...)
 	if err != nil {
 		errs.Add(engine.PathRoot.String(), engine.CodeInvalidValue, fmt.Sprintf("failed to create objective env: %v", err))
 		return nil, sortedIssues(errs)
