@@ -562,3 +562,42 @@ func TestMCPServeUsageError(t *testing.T) {
 		require.Contains(t, stderr.String(), "exactly one of --stdio or --http")
 	})
 }
+
+func TestModelInit(t *testing.T) {
+	t.Run("canary", func(t *testing.T) {
+		dir := t.TempDir()
+		code, out, errOut := gargi(t, "model", "init", "--template", "canary", dir)
+		require.Equal(t, 0, code, errOut)
+		require.Contains(t, out, "Initialized canary model in")
+		require.FileExists(t, filepath.Join(dir, "sim.yaml"))
+		require.FileExists(t, filepath.Join(dir, "graph.yaml"))
+		require.FileExists(t, filepath.Join(dir, "experiment.yaml"))
+
+		valCode, valOut, valErr := gargi(t, "model", "validate", filepath.Join(dir, "sim.yaml"))
+		require.Equal(t, 0, valCode, valErr)
+		require.Equal(t, "OK\n", valOut)
+	})
+
+	t.Run("loan", func(t *testing.T) {
+		dir := t.TempDir()
+		code, out, errOut := gargi(t, "model", "init", "--template", "loan", dir)
+		require.Equal(t, 0, code, errOut)
+		require.Contains(t, out, "Initialized loan model in")
+		require.FileExists(t, filepath.Join(dir, "sim.yaml"))
+		require.FileExists(t, filepath.Join(dir, "graph.yaml"))
+	})
+
+	t.Run("unknown_template", func(t *testing.T) {
+		dir := t.TempDir()
+		code, _, errOut := gargi(t, "model", "init", "--template", "unknown", dir)
+		require.Equal(t, 1, code)
+		require.Contains(t, errOut, "unknown template")
+	})
+
+	t.Run("missing_template", func(t *testing.T) {
+		dir := t.TempDir()
+		code, _, errOut := gargi(t, "model", "init", dir)
+		require.Equal(t, 2, code)
+		require.Contains(t, errOut, "usage: gargi model init")
+	})
+}

@@ -41,6 +41,7 @@ const (
 const errServerMode = "pass --local or --server URL"
 
 const usage = `usage:
+  gargi model init --template canary|loan [dir]
   gargi model validate [--json] <sim.yaml>
   gargi sim run <experiment.yaml> --local [--workers N] [--json] [--out report.json] [--emit-best DIR] [--top K]
   gargi sim run <experiment.yaml> --server URL [--json] [--out report.json] [--top K]
@@ -67,11 +68,19 @@ func run(args []string, stdout, stderr io.Writer) int {
 		printf(stdout, "gargi %s\n", version)
 		return exitOK
 	case "model":
-		if len(args) < 2 || args[1] != "validate" {
+		if len(args) < 2 {
 			printf(stderr, "%s", usage)
 			return exitUsage
 		}
-		return modelValidate(args[2:], stdout, stderr)
+		switch args[1] {
+		case "validate":
+			return modelValidate(args[2:], stdout, stderr)
+		case "init":
+			return modelInit(args[2:], stdout, stderr)
+		default:
+			printf(stderr, "%s", usage)
+			return exitUsage
+		}
 	case "sim":
 		if len(args) < 2 || (args[1] != "run" && args[1] != "report") {
 			printf(stderr, "%s", usage)
@@ -188,6 +197,30 @@ func policyExplain(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 	printf(stdout, "%s", out)
+	return exitOK
+}
+
+func modelInit(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("gargi model init", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	template := fs.String("template", "", "Template to initialize: canary or loan")
+	pos, err := parseInterspersed(fs, args)
+	if err != nil {
+		return parseExit(err)
+	}
+	if *template == "" || len(pos) > 1 {
+		printf(stderr, "%s\n", "usage: gargi model init --template canary|loan [dir]")
+		return exitUsage
+	}
+	dest := "."
+	if len(pos) == 1 {
+		dest = pos[0]
+	}
+	if err := mcp.CopyTemplate(*template, dest); err != nil {
+		printf(stderr, "gargi: %v\n", err)
+		return exitError
+	}
+	printf(stdout, "Initialized %s model in %s\n", *template, dest)
 	return exitOK
 }
 

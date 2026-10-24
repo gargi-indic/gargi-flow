@@ -3,7 +3,9 @@ package mcp
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 )
@@ -67,4 +69,43 @@ func listTemplates() (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// CopyTemplate copies an embedded template (canary or loan) into destDir.
+func CopyTemplate(name, destDir string) error {
+	switch name {
+	case "canary":
+		name = "canary-rollout"
+	case "loan":
+		name = "loan-underwriting"
+	}
+	srcDir := filepath.Join("templates", name)
+	if _, err := fs.Stat(templatesFS, srcDir); err != nil {
+		return fmt.Errorf("unknown template %q (available: canary, loan)", name)
+	}
+
+	return fs.WalkDir(templatesFS, srcDir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(srcDir, p)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		target := filepath.Join(destDir, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := fs.ReadFile(templatesFS, p)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
 }

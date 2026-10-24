@@ -1,0 +1,17 @@
+apiVersion: policy/v1
+id: canary-rollout
+version: grid
+params:
+  tau1: {min: 0.02, max: 0.14, step: 0.04}
+  tau2: {min: 0.02, max: 0.14, step: 0.04}
+decisions:
+  gate_1:
+    rules:
+      - when: "observe_1.output.error_rate >= params.tau1"
+        choose: rollback
+      - else: promote
+  gate_2:
+    rules:
+      - when: "observe_2.output.error_rate >= params.tau2"
+        choose: rollback
+      - else: promote
