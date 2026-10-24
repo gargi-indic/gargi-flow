@@ -18,17 +18,28 @@ type PlainNodeData = {
   type: string;
   errors?: string[];
   results?: SimGraphResults;
+  nodeStatuses?: Record<string, string>;
 };
 
 const PlainNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
+
   const hasErrors = data.errors && data.errors.length > 0;
+  const status = data.nodeStatuses?.[data.id];
+  let statusColor = '#ccc';
+  if (status === 'NODE_STATUS_SUCCEEDED') statusColor = '#4caf50';
+  else if (status === 'NODE_STATUS_FAILED') statusColor = '#f44336';
+  else if (status === 'NODE_STATUS_RUNNING') statusColor = '#2196f3';
+  else if (status === 'NODE_STATUS_READY' || status === 'NODE_STATUS_PENDING') statusColor = '#ffeb3b';
+  else if (status === 'NODE_STATUS_SKIPPED') statusColor = '#9e9e9e';
+
   return (
     <div
       data-testid={`sim-node-${data.id}`}
       style={{
         padding: '10px',
-        border: `2px solid ${hasErrors ? '#f44336' : '#ccc'}`,
+        border: `2px solid ${hasErrors ? '#f44336' : statusColor}`,
         borderRadius: '8px',
+
         background: '#fff',
         minWidth: '150px',
         textAlign: 'center',
@@ -69,8 +80,17 @@ const PlainNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
 };
 
 const DecisionNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
+
   const hasErrors = data.errors && data.errors.length > 0;
   const decisionChoices = data.results?.choices?.[data.id];
+  const status = data.nodeStatuses?.[data.id];
+  let statusColor = '#ccc';
+  if (status === 'NODE_STATUS_SUCCEEDED') statusColor = '#4caf50';
+  else if (status === 'NODE_STATUS_FAILED') statusColor = '#f44336';
+  else if (status === 'NODE_STATUS_RUNNING') statusColor = '#2196f3';
+  else if (status === 'NODE_STATUS_READY' || status === 'NODE_STATUS_PENDING') statusColor = '#ffeb3b';
+  else if (status === 'NODE_STATUS_SKIPPED') statusColor = '#9e9e9e';
+
   return (
     <div
       data-testid={`sim-node-${data.id}`}
@@ -91,8 +111,9 @@ const DecisionNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
           right: 0,
           bottom: 0,
           background: '#fff',
-          border: `2px solid ${hasErrors ? '#f44336' : '#ccc'}`,
+          border: `2px solid ${hasErrors ? '#f44336' : statusColor}`,
           transform: 'rotate(45deg)',
+
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
         }}
       />
@@ -150,9 +171,10 @@ interface SimGraphViewProps {
   nodeErrors: Record<string, string[]>;
   onNodeClick: (nodeId: string) => void;
   results?: SimGraphResults;
+  nodeStatuses?: Record<string, string>;
 }
 
-export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick, results }: SimGraphViewProps) {
+export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick, results, nodeStatuses }: SimGraphViewProps) {
 
   const { flowNodes, flowEdges } = useMemo(() => {
     const dagreGraph = new dagre.graphlib.Graph();
@@ -163,7 +185,7 @@ export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick, re
       id: n.id,
       type: n.type === 'decision' ? 'decision' : 'plain',
       position: { x: 0, y: 0 },
-      data: { id: n.id, type: n.type, errors: nodeErrors[n.id] || [], results },
+      data: { id: n.id, type: n.type, errors: nodeErrors[n.id] || [], results, nodeStatuses },
     }));
 
     const rfEdges: ReactFlowEdge[] = edges.map((e, i) => {
@@ -213,7 +235,7 @@ export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick, re
     });
 
     return { flowNodes: layoutedNodes, flowEdges: rfEdges };
-  }, [nodes, edges, nodeErrors, results]);
+  }, [nodes, edges, nodeErrors, results, nodeStatuses]);
 
   return (
     <div style={{ flex: 1, width: '100%', height: '100%', background: '#fafafa' }}>

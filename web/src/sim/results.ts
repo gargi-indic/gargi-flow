@@ -26,9 +26,62 @@ export type PathHeatmapWorld = {
   edges: { from: string; to: string; index: number; mass: number }[];
 };
 
+export type RegretCell = {
+  world: string;
+  policyId: string;
+  value: number;
+  regret: number;
+  feasible: boolean;
+};
+
+export type RegretRow = {
+  tunedFor: string;
+  policyId: string;
+  cells: RegretCell[];
+  maxRegret: number;
+};
+
+export type RegretData = {
+  worlds: string[];
+  rows: RegretRow[];
+};
+
+export type VoiReportEntry = {
+  world: string;
+  node: string;
+  withObservation: { policyId: string; ev: number };
+  withoutObservation: { policyId: string; ev: number };
+  voi: number;
+};
+
+export type FlipPointSweep = {
+  value: number;
+  policyId: string;
+  ev: number;
+};
+
+export type FlipPointTransition = {
+  from: string;
+  to: string;
+  left: { value: number; policyId: string; ev: number };
+  right: { value: number; policyId: string; ev: number };
+};
+
+export type FlipPointReportEntry = {
+  param: string;
+  baseWorld: string;
+  lo: number;
+  hi: number;
+  sweep: FlipPointSweep[];
+  flips: FlipPointTransition[];
+};
+
 export type SimulationReport = {
   reports?: {
     policyTree?: PolicyTreeWorld[];
+    regret?: RegretData;
+    voi?: VoiReportEntry[];
+    flipPoints?: FlipPointReportEntry[];
     pathHeatmap?: PathHeatmapWorld[];
   };
 };
