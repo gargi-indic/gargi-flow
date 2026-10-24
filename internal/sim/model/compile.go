@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gargi-indic/gargi-flow/internal/graph"
 	"github.com/gargi-indic/gargi-flow/pkg/engine"
@@ -30,15 +31,16 @@ type ValueKind string
 
 // Value spec kinds. Exactly one is set per CompiledValue.
 const (
-	KindFixed      ValueKind = "fixed"
-	KindChoice     ValueKind = "choice"
-	KindBernoulli  ValueKind = "bernoulli"
-	KindNormal     ValueKind = "normal"
-	KindLognormal  ValueKind = "lognormal"
-	KindUniform    ValueKind = "uniform"
-	KindTriangular ValueKind = "triangular"
-	KindEmpirical  ValueKind = "empirical"
-	KindExpr       ValueKind = "expr"
+	KindFixed       ValueKind = "fixed"
+	KindChoice      ValueKind = "choice"
+	KindBernoulli   ValueKind = "bernoulli"
+	KindNormal      ValueKind = "normal"
+	KindLognormal   ValueKind = "lognormal"
+	KindUniform     ValueKind = "uniform"
+	KindTriangular  ValueKind = "triangular"
+	KindExponential ValueKind = "exponential"
+	KindEmpirical   ValueKind = "empirical"
+	KindExpr        ValueKind = "expr"
 )
 
 // Distribution parameter names used as keys of CompiledValue.Params.
@@ -51,6 +53,7 @@ const (
 	ParamMin   = "min"   // uniform, triangular
 	ParamMax   = "max"   // uniform, triangular
 	ParamMode  = "mode"  // triangular
+	ParamRate  = "rate"  // exponential
 )
 
 // CompiledParam is one numeric parameter of a value spec or behavior. A
@@ -111,16 +114,20 @@ type CompiledBehavior struct {
 	// FailP is the probability that the node fails.
 	FailP *CompiledParam
 	// Outputs maps each output field to its compiled value spec.
-	Outputs map[string]CompiledValue
+	Resource string
+	Patience *CompiledParam
+	Outputs  map[string]CompiledValue
 }
 
 // CompiledModel is a validated sim/v1 model with every CEL program compiled
 // and type-checked once. It is immutable after Compile returns and safe to
 // share between goroutines.
 type CompiledModel struct {
-	Def      *Sim
-	Graph    *engine.GraphDefinition
-	Registry *engine.Registry
+	Def              *Sim
+	Graph            *engine.GraphDefinition
+	Registry         *engine.Registry
+	CompiledArrivals *CompiledArrivals
+	Horizon          time.Duration
 
 	// LatentOrder lists latent names in the order they are sampled (sorted).
 	LatentOrder []string
@@ -257,6 +264,8 @@ func compileValue(spec ValueSpec, path engine.Path, env *cel.Env, errs *engine.V
 	case spec.Triangular != nil:
 		return params(KindTriangular, []string{ParamMin, ParamMode, ParamMax},
 			[]any{spec.Triangular.Min, spec.Triangular.Mode, spec.Triangular.Max})
+	case spec.Exponential != nil:
+		return params(KindExponential, []string{ParamRate}, []any{spec.Exponential.Rate})
 	case spec.Empirical != nil:
 		return CompiledValue{Kind: KindEmpirical, Empirical: spec.Empirical}
 	case spec.Expr != "":
@@ -438,6 +447,18 @@ func compileWithGraph(def *Sim, gDef *engine.GraphDefinition, reg *engine.Regist
 		if !nodeExists[id] {
 			errs.Add(behaviorsPath.Field(id).String(), sim.CodeBehaviorUnknownNode, fmt.Sprintf("behavior for unknown node %q", id))
 		}
+		if def.Behaviors[id].Resource != "" {
+			if _, ok := def.Resources[def.Behaviors[id].Resource]; !ok {
+				errs.Add(behaviorsPath.Field(id).Field("resource").String(), sim.CodeUnresolvedReference, fmt.Sprintf("unresolved resource %q", def.Behaviors[id].Resource))
+			}
+		}
+	}
+	resourcesPath := engine.PathRoot.Field("resources")
+	for _, name := range sortedKeys(def.Resources) {
+		res := def.Resources[name]
+		if res.Capacity <= 0 {
+			errs.Add(resourcesPath.Field(name).Field("capacity").String(), engine.CodeInvalidValue, fmt.Sprintf("capacity must be >= 1, got %d", res.Capacity))
+		}
 	}
 	for _, id := range effectful {
 		if _, ok := def.Behaviors[id]; !ok {
@@ -471,6 +492,44 @@ func compileWithGraph(def *Sim, gDef *engine.GraphDefinition, reg *engine.Regist
 		CompiledBehaviors:   make(map[string]CompiledBehavior, len(def.Behaviors)),
 	}
 
+	if def.Horizon != "" {
+		h, err := time.ParseDuration(def.Horizon)
+		if err != nil || h <= 0 {
+			errs.Add(engine.PathRoot.Field("horizon").String(), engine.CodeInvalidValue, fmt.Sprintf("invalid horizon %q", def.Horizon))
+		} else {
+			m.Horizon = h
+		}
+	}
+
+	if def.Arrivals != nil {
+		m.CompiledArrivals = &CompiledArrivals{}
+		arrivalsPath := engine.PathRoot.Field("arrivals")
+		if def.Arrivals.Poisson != nil {
+			m.CompiledArrivals.Poisson = &CompiledPoissonArrivals{
+				Rate: compileParamPtr(def.Arrivals.Poisson.Rate, arrivalsPath.Field("poisson").Field("rate").String(), latentEnv, errs),
+			}
+		} else if len(def.Arrivals.Schedule) > 0 {
+			for i, w := range def.Arrivals.Schedule {
+				wPath := arrivalsPath.Field("schedule").Index(i)
+				d, err := time.ParseDuration(w.Duration)
+				if err != nil || d <= 0 {
+					errs.Add(wPath.Field("duration").String(), engine.CodeInvalidValue, fmt.Sprintf("invalid duration %q", w.Duration))
+				}
+				m.CompiledArrivals.Schedule = append(m.CompiledArrivals.Schedule, CompiledScheduleWindow{
+					Duration: d,
+					Rate:     compileParamPtr(w.Rate, wPath.Field("rate").String(), latentEnv, errs),
+				})
+			}
+		} else if len(def.Arrivals.Empirical) > 0 {
+			for i, v := range def.Arrivals.Empirical {
+				if v <= 0 {
+					errs.Add(arrivalsPath.Field("empirical").Index(i).String(), engine.CodeInvalidValue, fmt.Sprintf("empirical inter-arrival must be > 0, got %v", v))
+				}
+			}
+			m.CompiledArrivals.Empirical = def.Arrivals.Empirical
+		}
+	}
+
 	latentsPath := engine.PathRoot.Field("latents")
 	for _, name := range m.LatentOrder {
 		m.CompiledLatents[name] = compileValue(def.Latents[name], latentsPath.Field(name), latentEnv, errs)
@@ -498,7 +557,19 @@ func compileWithGraph(def *Sim, gDef *engine.GraphDefinition, reg *engine.Regist
 }
 
 func compileBehavior(b Behavior, base engine.Path, env *cel.Env, errs *engine.ValidationErrors) CompiledBehavior {
-	cb := CompiledBehavior{Outputs: make(map[string]CompiledValue, len(b.Output))}
+	cb := CompiledBehavior{Outputs: make(map[string]CompiledValue, len(b.Output)), Resource: b.Resource}
+	if b.Patience != nil {
+		switch p := b.Patience.(type) {
+		case string:
+			if d, err := time.ParseDuration(p); err == nil {
+				cb.Patience = &CompiledParam{Source: p, Literal: d.Seconds()}
+			} else {
+				cb.Patience = compileParamPtr(b.Patience, base.Field("patience").String(), env, errs)
+			}
+		default:
+			cb.Patience = compileParamPtr(b.Patience, base.Field("patience").String(), env, errs)
+		}
+	}
 	if b.Cost != nil {
 		cb.Cost = compileParamPtr(b.Cost, base.Field("cost").String(), env, errs)
 	}
@@ -522,4 +593,22 @@ func compileBehavior(b Behavior, base engine.Path, env *cel.Env, errs *engine.Va
 		cb.Outputs[name] = compileValue(b.Output[name], base.Field("output").Field(name), env, errs)
 	}
 	return cb
+}
+
+// CompiledArrivals represents the compiled arrival specification.
+type CompiledArrivals struct {
+	Poisson   *CompiledPoissonArrivals
+	Schedule  []CompiledScheduleWindow
+	Empirical []float64
+}
+
+// CompiledPoissonArrivals represents a compiled Poisson arrival process.
+type CompiledPoissonArrivals struct {
+	Rate *CompiledParam
+}
+
+// CompiledScheduleWindow represents a compiled scheduled arrival window.
+type CompiledScheduleWindow struct {
+	Duration time.Duration
+	Rate     *CompiledParam
 }

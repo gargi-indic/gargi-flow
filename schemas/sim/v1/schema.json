@@ -33,7 +33,11 @@
         "^[a-zA-Z0-9_-]+$": {
           "type": "object",
           "additionalProperties": {
-            "type": ["number", "string", "boolean"]
+            "type": [
+              "number",
+              "string",
+              "boolean"
+            ]
           }
         }
       },
@@ -70,7 +74,9 @@
               "type": "integer"
             }
           },
-          "required": ["capacity"]
+          "required": [
+            "capacity"
+          ]
         }
       }
     },
@@ -86,7 +92,9 @@
         },
         "maximize": {
           "type": "string",
-          "enum": ["mean"]
+          "enum": [
+            "mean"
+          ]
         },
         "constraints": {
           "type": "object",
@@ -110,7 +118,11 @@
           "description": "Map name -> aggregate requirement '<agg>(<arg>) <op> <rhs>' evaluated on the estimates of each policy in each world: agg is mean, p50 or p95 of a metric (objective, cost, duration or a declared metric) or prob(<per-run boolean CEL>); op is <=, <, >=, > or ==; rhs is a number or duration('<Go duration>') in seconds. Policies that violate a requirement are infeasible and rank last"
         }
       },
-      "required": ["name", "value", "maximize"]
+      "required": [
+        "name",
+        "value",
+        "maximize"
+      ]
     },
     "metrics": {
       "type": "object",
@@ -121,17 +133,29 @@
         }
       },
       "description": "Map name -> numeric CEL expression evaluated once per run with world, latent, nodes and run, estimated like the objective. objective, cost and duration are reserved built-in metrics"
+    },
+    "arrivals": {
+      "$ref": "#/$defs/ArrivalsSpec"
+    },
+    "horizon": {
+      "type": "string",
+      "pattern": "^[0-9]+(ms|s|m|h)$"
     }
   },
   "$defs": {
     "NumberOrCEL": {
-      "type": ["number", "string"]
+      "type": [
+        "number",
+        "string"
+      ]
     },
     "ValueSpec": {
       "type": "object",
       "oneOf": [
         {
-          "required": ["fixed"],
+          "required": [
+            "fixed"
+          ],
           "properties": {
             "fixed": {
               "$ref": "#/$defs/NumberOrCEL"
@@ -139,7 +163,9 @@
           }
         },
         {
-          "required": ["choice"],
+          "required": [
+            "choice"
+          ],
           "properties": {
             "choice": {
               "type": "object",
@@ -153,7 +179,9 @@
           }
         },
         {
-          "required": ["bernoulli"],
+          "required": [
+            "bernoulli"
+          ],
           "properties": {
             "bernoulli": {
               "type": "object",
@@ -163,12 +191,16 @@
                   "$ref": "#/$defs/NumberOrCEL"
                 }
               },
-              "required": ["p"]
+              "required": [
+                "p"
+              ]
             }
           }
         },
         {
-          "required": ["normal"],
+          "required": [
+            "normal"
+          ],
           "properties": {
             "normal": {
               "type": "object",
@@ -181,12 +213,17 @@
                   "$ref": "#/$defs/NumberOrCEL"
                 }
               },
-              "required": ["mean", "sd"]
+              "required": [
+                "mean",
+                "sd"
+              ]
             }
           }
         },
         {
-          "required": ["lognormal"],
+          "required": [
+            "lognormal"
+          ],
           "properties": {
             "lognormal": {
               "type": "object",
@@ -199,12 +236,17 @@
                   "$ref": "#/$defs/NumberOrCEL"
                 }
               },
-              "required": ["mu", "sigma"]
+              "required": [
+                "mu",
+                "sigma"
+              ]
             }
           }
         },
         {
-          "required": ["uniform"],
+          "required": [
+            "uniform"
+          ],
           "properties": {
             "uniform": {
               "type": "object",
@@ -217,12 +259,17 @@
                   "$ref": "#/$defs/NumberOrCEL"
                 }
               },
-              "required": ["min", "max"]
+              "required": [
+                "min",
+                "max"
+              ]
             }
           }
         },
         {
-          "required": ["triangular"],
+          "required": [
+            "triangular"
+          ],
           "properties": {
             "triangular": {
               "type": "object",
@@ -238,12 +285,37 @@
                   "$ref": "#/$defs/NumberOrCEL"
                 }
               },
-              "required": ["min", "mode", "max"]
+              "required": [
+                "min",
+                "mode",
+                "max"
+              ]
             }
           }
         },
         {
-          "required": ["empirical"],
+          "required": [
+            "exponential"
+          ],
+          "properties": {
+            "exponential": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "rate": {
+                  "$ref": "#/$defs/NumberOrCEL"
+                }
+              },
+              "required": [
+                "rate"
+              ]
+            }
+          }
+        },
+        {
+          "required": [
+            "empirical"
+          ],
           "properties": {
             "empirical": {
               "type": "array",
@@ -254,7 +326,9 @@
           }
         },
         {
-          "required": ["expr"],
+          "required": [
+            "expr"
+          ],
           "properties": {
             "expr": {
               "type": "string"
@@ -289,7 +363,9 @@
               "$ref": "#/$defs/NumberOrCEL"
             }
           },
-          "required": ["p"]
+          "required": [
+            "p"
+          ]
         },
         "fail": {
           "type": "object",
@@ -300,10 +376,17 @@
             },
             "class": {
               "type": "string",
-              "enum": ["retryable", "non_retryable", "critical"]
+              "enum": [
+                "retryable",
+                "non_retryable",
+                "critical"
+              ]
             }
           },
-          "required": ["p", "class"]
+          "required": [
+            "p",
+            "class"
+          ]
         },
         "output": {
           "type": "object",
@@ -313,8 +396,88 @@
               "$ref": "#/$defs/ValueSpec"
             }
           }
+        },
+        "resource": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "patience": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+(ms|s|m|h)$"
+            },
+            {
+              "$ref": "#/$defs/NumberOrCEL"
+            }
+          ]
         }
       }
+    },
+    "ArrivalsSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "poisson"
+          ],
+          "properties": {
+            "poisson": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "rate": {
+                  "$ref": "#/$defs/NumberOrCEL"
+                }
+              },
+              "required": [
+                "rate"
+              ]
+            }
+          }
+        },
+        {
+          "required": [
+            "schedule"
+          ],
+          "properties": {
+            "schedule": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "duration": {
+                    "type": "string",
+                    "pattern": "^[0-9]+(ms|s|m|h)$"
+                  },
+                  "rate": {
+                    "$ref": "#/$defs/NumberOrCEL"
+                  }
+                },
+                "required": [
+                  "duration",
+                  "rate"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "required": [
+            "empirical"
+          ],
+          "properties": {
+            "empirical": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }
