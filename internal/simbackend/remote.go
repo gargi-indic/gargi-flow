@@ -553,3 +553,25 @@ func (r *Remote) IngestOutcome(ctx context.Context, req OutcomeRequest) error {
 	_, err := r.do(ctx, http.MethodPost, "/v1/outcomes", body)
 	return err
 }
+
+// GetDriftReport returns the drift report comparing predicted vs observed metrics per policy version for a model.
+func (r *Remote) GetDriftReport(ctx context.Context, modelID string, policyVersion string) (json.RawMessage, error) {
+	if modelID == "" {
+		return nil, errors.New("model_id is required")
+	}
+	path := "/v1/models/" + url.PathEscape(modelID) + "/drift"
+	if policyVersion != "" {
+		path += "?policy_version=" + url.QueryEscape(policyVersion)
+	}
+	data, err := r.do(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Report json.RawMessage `json:"report"`
+	}
+	if err := json.Unmarshal(data, &resp); err == nil && len(resp.Report) > 0 {
+		return resp.Report, nil
+	}
+	return json.RawMessage(data), nil
+}

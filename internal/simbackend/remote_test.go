@@ -282,3 +282,47 @@ func TestRemote_IngestOutcome(t *testing.T) {
 	require.Equal(t, "1", outcomes[0].PolicyVersion)
 	require.Equal(t, 1.0, outcomes[0].Latents["default"])
 }
+
+func TestRemote_GetDriftReport(t *testing.T) {
+	r, simStore, _ := newRemoteWithStores(t)
+	ctx := context.Background()
+
+	// Missing model ID
+	_, err := r.GetDriftReport(ctx, "", "1")
+	require.Error(t, err)
+
+	// Non-existent model
+	_, err = r.GetDriftReport(ctx, "nonexistent-model", "1")
+	require.Error(t, err)
+	require.ErrorIs(t, err, simbackend.ErrNotFound)
+
+	// Save model first
+	simDoc, err := os.ReadFile(testdata("sim.yaml"))
+	require.NoError(t, err)
+	graphDoc, err := os.ReadFile(testdata("graph.yaml"))
+	require.NoError(t, err)
+	policy, err := os.ReadFile(testdata("recession-v1.yaml"))
+	require.NoError(t, err)
+
+	b := sim.ModelBundle{
+		ID:       "loan-drift-test",
+		Sim:      simDoc,
+		Graph:    graphDoc,
+		Policies: map[string][]byte{"recession-v1.yaml": policy},
+		Format:   "yaml",
+	}
+	_, err = simStore.SaveModel(ctx, b)
+	require.NoError(t, err)
+
+	// Fetch drift report
+	reportRaw, err := r.GetDriftReport(ctx, "loan-drift-test", "1")
+	require.NoError(t, err)
+	require.NotEmpty(t, reportRaw)
+
+	var rep struct {
+		PolicyVersion string `json:"policyVersion"`
+		DriftDetected bool   `json:"driftDetected"`
+	}
+	require.NoError(t, json.Unmarshal(reportRaw, &rep))
+	require.Equal(t, "1", rep.PolicyVersion)
+}

@@ -42,6 +42,8 @@ type Backend interface {
 	DeployPolicy(ctx context.Context, ref string, mode string) (*DeployResult, error)
 	// IngestOutcome reports real-world outcomes for an execution.
 	IngestOutcome(ctx context.Context, req OutcomeRequest) error
+	// GetDriftReport returns the drift report comparing predicted vs observed metrics per policy version for a model.
+	GetDriftReport(ctx context.Context, modelID string, policyVersion string) (json.RawMessage, error)
 }
 
 // OutcomeRequest specifies an outcome to ingest.

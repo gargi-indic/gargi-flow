@@ -45,6 +45,7 @@ const errServerMode = "pass --local or --server URL"
 
 const usage = `usage:
   gargi model init --template canary|loan [dir]
+  gargi model drift <model-id> --server <url> [--policy-version <version>] [--json]
   gargi model validate [--json] <sim.yaml>
   gargi model calibrate [--server <url>] [--out <output.yaml>] [--graph <graph.yaml>] <sim.yaml>
   gargi sim run <experiment.yaml> --local [--workers N] [--json] [--out report.json] [--emit-best DIR] [--export-jsonl path] [--top K]
@@ -83,6 +84,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return modelValidate(args[2:], stdout, stderr)
 		case "init":
 			return modelInit(args[2:], stdout, stderr)
+		case "drift":
+			return modelDrift(args[2:], stdout, stderr)
 		case "calibrate":
 			return modelCalibrate(args[2:], stdout, stderr)
 		default:

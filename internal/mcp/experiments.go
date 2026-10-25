@@ -109,6 +109,12 @@ type IngestOutcomeInput struct {
 	ObservedAt  string         `json:"observed_at,omitempty" jsonschema:"optional timestamp when outcome was observed (RFC3339)"`
 }
 
+// GetDriftReportInput specifies the arguments for get_drift_report.
+type GetDriftReportInput struct {
+	ModelID       string `json:"model_id" jsonschema:"the model ID"`
+	PolicyVersion string `json:"policy_version,omitempty" jsonschema:"optional policy version to compare against (defaults to '1')"`
+}
+
 func (s *workspaceServer) runExperiment(ctx context.Context, _ *mcp.CallToolRequest, in RunExperimentInput) (*mcp.CallToolResult, any, error) {
 	if !modelIDPattern.MatchString(in.ModelID) {
 		return toolErrorf(engine.CodeInvalidValue, "invalid model id"), nil, nil
@@ -669,6 +675,59 @@ func (s *workspaceServer) ingestOutcome(ctx context.Context, _ *mcp.CallToolRequ
 		Content: []mcp.Content{
 			&mcp.TextContent{
 				Text: string(b),
+			},
+		},
+	}, nil, nil
+}
+
+func (s *workspaceServer) getDriftReport(ctx context.Context, _ *mcp.CallToolRequest, in GetDriftReportInput) (*mcp.CallToolResult, any, error) {
+	if !modelIDPattern.MatchString(in.ModelID) {
+		return toolErrorf(engine.CodeInvalidValue, "invalid model id"), nil, nil
+	}
+
+	policyVersion := in.PolicyVersion
+	if policyVersion == "" {
+		policyVersion = "1"
+	}
+
+	s.ws.mu.Lock()
+	docs, hasWorkspaceModel := s.ws.models[in.ModelID]
+	s.ws.mu.Unlock()
+
+	if hasWorkspaceModel && docs != nil {
+		simBytes, _ := yaml.Marshal(docs.sim)
+		graphBytes, _ := yaml.Marshal(docs.graph)
+		b := sim.ModelBundle{
+			ID:       in.ModelID,
+			Sim:      simBytes,
+			Graph:    graphBytes,
+			Format:   "yaml",
+			Policies: make(map[string][]byte),
+		}
+		for k, v := range docs.policies {
+			vBytes, _ := yaml.Marshal(v)
+			if !strings.HasSuffix(k, ".yaml") {
+				k = k + ".yaml"
+			}
+			b.Policies[k] = vBytes
+		}
+
+		if l, ok := s.backend.(interface {
+			ExperimentStore() sim.ExperimentStore
+		}); ok && l.ExperimentStore() != nil {
+			_, _ = l.ExperimentStore().SaveModel(ctx, b)
+		}
+	}
+
+	reportRaw, err := s.backend.GetDriftReport(ctx, in.ModelID, policyVersion)
+	if err != nil {
+		return toolError(simbackend.IssuesOf(err, engine.CodeInvalidValue), nil), nil, nil
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: string(reportRaw),
 			},
 		},
 	}, nil, nil

@@ -652,6 +652,43 @@
         ]
       }
     },
+    "/v1/models/{modelId}/drift": {
+      "get": {
+        "summary": "IngestOutcome reports real-world outcomes for an execution.\nGetDriftReport returns the drift report comparing predicted vs observed metrics per policy version.",
+        "operationId": "SimulationService_GetDriftReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetDriftReportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "policyVersion",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SimulationService"
+        ]
+      }
+    },
     "/v1/models:validate": {
       "post": {
         "summary": "ValidateModel validates a model without storing it.",
@@ -688,7 +725,6 @@
     },
     "/v1/outcomes": {
       "post": {
-        "summary": "IngestOutcome reports real-world outcomes for an execution.",
         "operationId": "SimulationService_IngestOutcome",
         "responses": {
           "200": {
@@ -812,7 +848,7 @@
         "NULL_VALUE"
       ],
       "default": "NULL_VALUE",
-      "description": "`NullValue` is a singleton enumeration to represent the null value for the\n`Value` type union.\n\nThe JSON representation for `NullValue` is JSON `null`.\n\n - NULL_VALUE: Null value."
+      "description": "Represents a JSON `null`.\n\n`NullValue` is a sentinel, using an enum with only one value to represent\nthe null value for the `Value` type union.\n\nA field of type `NullValue` with any value other than `0` is considered\ninvalid. Most ProtoJSON serializers will emit a `Value` with a `null_value`\nset as a JSON `null` regardless of the integer value, and so will round trip\nto a `0` value.\n\n - NULL_VALUE: Null value."
     },
     "rpcStatus": {
       "type": "object",
@@ -1046,6 +1082,19 @@
       "default": "EXPERIMENT_STATUS_UNSPECIFIED",
       "description": "ExperimentStatus is the lifecycle state of a simulation experiment job."
     },
+    "v1GetDriftReportResponse": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        },
+        "policyVersion": {
+          "type": "string"
+        },
+        "report": {}
+      },
+      "description": "GetDriftReportResponse carries the drift report."
+    },
     "v1GetExecutionResponse": {
       "type": "object",
       "properties": {
@@ -1125,8 +1174,7 @@
           "type": "string"
         },
         "report": {}
-      },
-      "description": "GetReportResponse carries the report as JSON. Over REST the body is the\nreport itself."
+      }
     },
     "v1GetRunResponse": {
       "type": "object",

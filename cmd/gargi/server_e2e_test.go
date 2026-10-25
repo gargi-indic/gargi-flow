@@ -28,9 +28,10 @@ func startServer(t *testing.T) string {
 	st := memory.NewExperimentStore()
 	runner, err := jobs.New(st, reg, jobs.Options{RunWorkers: 2, Now: time.Now})
 	require.NoError(t, err)
-	svc := api.NewSimulationServer(st, runner, reg, nil)
+	memStore := memory.NewStore()
+	svc := api.NewSimulationServer(st, runner, reg, nil, api.WithStateStore(memStore))
 
-	execService := api.NewServer(nil, config.TemporalConfig{TaskQueue: "test-queue"}, memory.NewStore(), nil)
+	execService := api.NewServer(nil, config.TemporalConfig{TaskQueue: "test-queue"}, memStore, nil)
 	httpServer, err := api.NewHTTPServer(context.Background(), execService, ":0", nil, nil, api.WithSimulationService(svc))
 	require.NoError(t, err)
 	ts := httptest.NewServer(httpServer.Handler())
@@ -162,4 +163,43 @@ func TestServerE2E_ModelCalibrate(t *testing.T) {
 	require.Contains(t, out, "# Calibrated sim/v1 model overlay")
 	require.Contains(t, out, "apiVersion: sim/v1")
 	require.Contains(t, out, "loan-underwriting")
+}
+
+func TestServerE2E_ModelDrift(t *testing.T) {
+	url := startServer(t)
+
+	// Save model by running experiment on server
+	exp := filepath.Join(simbackendTestdata, "experiment-policy.yaml")
+	code, _, errOut := gargi(t, "sim", "run", exp, "--server", url)
+	require.Equal(t, 0, code, errOut)
+
+	// 1. gargi model drift with --json
+	code, out, errOut := gargi(t, "model", "drift", "loan-underwriting", "--server", url, "--json")
+	require.Equal(t, 0, code, errOut)
+	var rep struct {
+		PolicyVersion string `json:"policyVersion"`
+		DriftDetected bool   `json:"driftDetected"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &rep))
+	require.Equal(t, "1", rep.PolicyVersion)
+
+	// 2. gargi model drift summary output
+	code, out, errOut = gargi(t, "model", "drift", "loan-underwriting", "--server", url, "--policy-version", "1")
+	require.Equal(t, 0, code, errOut)
+	require.Contains(t, out, "Drift Report for Model: loan-underwriting (Policy Version: 1)")
+
+	// 3. Error on non-existent model
+	code, _, errOut = gargi(t, "model", "drift", "non-existent-model", "--server", url)
+	require.Equal(t, 1, code)
+	require.Contains(t, errOut, "NOT_FOUND")
+
+	// 4. Usage error: missing --server
+	code, _, errOut = gargi(t, "model", "drift", "loan-underwriting")
+	require.Equal(t, 2, code)
+	require.Contains(t, errOut, "usage: gargi model drift")
+
+	// 5. Usage error: missing model-id
+	code, _, errOut = gargi(t, "model", "drift", "--server", url)
+	require.Equal(t, 2, code)
+	require.Contains(t, errOut, "usage: gargi model drift")
 }
