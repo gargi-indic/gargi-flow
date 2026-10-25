@@ -17,6 +17,8 @@ type BehaviorInput struct {
 	Latents map[string]any
 	// World is the simulation world in which this behavior occurs.
 	World World
+	// Replication is the index of this simulation run within an experiment.
+	Replication uint64
 }
 
 // BehaviorOutcome represents the simulated result of a node execution.

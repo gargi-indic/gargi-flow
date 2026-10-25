@@ -366,7 +366,7 @@ func runRacing(ctx context.Context, exp *CompiledExperiment, racing RacingSource
 					return nil, err
 				}
 				seed := sim.Seed(exp.Def.Seed, world.ID, rep)
-				rec, err := kernel.RunEpisode(ctx, exp.Model, world, winner.policy, sampler.NewMonteCarlo(seed), kernel.Options{})
+				rec, err := kernel.RunEpisode(ctx, exp.Model, world, winner.policy, sampler.NewMonteCarlo(seed), kernel.Options{Replication: uint64(rep)})
 				if err != nil {
 					return nil, err
 				}
@@ -557,7 +557,7 @@ func evaluateCandidatesWork(ctx context.Context, exp *CompiledExperiment, world 
 					return err
 				}
 				seed := sim.Seed(exp.Def.Seed, world.ID, rep)
-				rec, err := kernel.RunEpisode(ctx, exp.Model, world, c.policy, sampler.NewMonteCarlo(seed), kernel.Options{})
+				rec, err := kernel.RunEpisode(ctx, exp.Model, world, c.policy, sampler.NewMonteCarlo(seed), kernel.Options{Replication: uint64(rep)})
 				if err != nil {
 					return fmt.Errorf("experiment: world %q policy %q replication %d: %w", world.ID, c.policy.ID(), rep, err)
 				}
@@ -601,7 +601,7 @@ func evaluateCandidatesWork(ctx context.Context, exp *CompiledExperiment, world 
 						return
 					}
 					seed := sim.Seed(exp.Def.Seed, world.ID, rep)
-					rec, err := kernel.RunEpisode(cctx, exp.Model, world, c.policy, sampler.NewMonteCarlo(seed), kernel.Options{})
+					rec, err := kernel.RunEpisode(cctx, exp.Model, world, c.policy, sampler.NewMonteCarlo(seed), kernel.Options{Replication: uint64(rep)})
 					if err != nil {
 						chunk.err = fmt.Errorf("experiment: world %q policy %q replication %d: %w", world.ID, c.policy.ID(), rep, err)
 						results[jIdx] = chunk

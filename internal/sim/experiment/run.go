@@ -496,7 +496,7 @@ func (r *runner) runChunk(ctx context.Context, j job) chunkResult {
 				res.err = err
 				return res
 			}
-			rec, err := kernel.RunEpisode(ctx, r.exp.Model, world, p, sampler.NewMonteCarlo(seed), kernel.Options{})
+			rec, err := kernel.RunEpisode(ctx, r.exp.Model, world, p, sampler.NewMonteCarlo(seed), kernel.Options{Replication: uint64(rep)})
 			if err != nil {
 				res.err = fmt.Errorf("experiment: world %q policy %q replication %d: %w", world.ID, p.ID(), rep, err)
 				return res

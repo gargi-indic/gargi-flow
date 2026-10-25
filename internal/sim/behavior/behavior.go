@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gargi-indic/gargi-flow/internal/sim/agent"
 	"github.com/gargi-indic/gargi-flow/internal/sim/model"
 	"github.com/gargi-indic/gargi-flow/pkg/engine"
 	"github.com/gargi-indic/gargi-flow/pkg/sim"
@@ -24,7 +25,7 @@ func New(cb model.CompiledBehavior, failClass string) sim.Behavior {
 	return &compiledBehavior{cb: cb, failClass: failClass}
 }
 
-func (b *compiledBehavior) Sample(_ context.Context, s sim.Sampler, in sim.BehaviorInput) (sim.BehaviorOutcome, error) {
+func (b *compiledBehavior) Sample(ctx context.Context, s sim.Sampler, in sim.BehaviorInput) (sim.BehaviorOutcome, error) {
 	out := sim.BehaviorOutcome{
 		Output: make(map[string]any),
 	}
@@ -77,6 +78,10 @@ func (b *compiledBehavior) Sample(_ context.Context, s sim.Sampler, in sim.Behav
 			out.Err = e
 			return out, nil
 		}
+	}
+
+	if b.cb.Agent != nil {
+		return b.sampleAgent(ctx, in)
 	}
 
 	// 3. Duration
@@ -281,4 +286,83 @@ func SampleLatents(m *model.CompiledModel, s sim.Sampler, vars map[string]any) (
 		vars["latent"] = latents // Update vars for subsequent latents
 	}
 	return latents, nil
+}
+
+func (b *compiledBehavior) sampleAgent(ctx context.Context, in sim.BehaviorInput) (sim.BehaviorOutcome, error) {
+	out := sim.BehaviorOutcome{
+		Output: make(map[string]any),
+	}
+	cfg := b.cb.Agent
+	client := agent.ClientFor(cfg)
+
+	worldParams := in.World.Params
+	if worldParams == nil {
+		worldParams = make(map[string]any)
+	}
+	inputs := in.Inputs
+	if inputs == nil {
+		inputs = make(map[string]any)
+	}
+
+	req := &agent.BehaviorRequest{
+		Node:   string(in.NodeID),
+		Inputs: inputs,
+		World:  worldParams,
+		Model:  cfg.Model,
+	}
+
+	hash, err := agent.GenerateInputHash(req)
+	if err != nil {
+		return out, fmt.Errorf("generate input hash: %w", err)
+	}
+
+	cacheKey := agent.CacheKey{
+		InputHash:   hash,
+		Model:       cfg.Model,
+		Replication: in.Replication,
+	}
+
+	var resp agent.BehaviorResponse
+	if agent.GlobalCache.Get(cacheKey, &resp) {
+		// Cache hit: zero external HTTP calls and zero spend
+		var d time.Duration
+		if resp.Duration != "" {
+			d, err = time.ParseDuration(resp.Duration)
+			if err != nil {
+				return out, fmt.Errorf("invalid duration in cached response: %w", err)
+			}
+		}
+		out.Output = resp.Output
+		out.Cost = resp.Cost
+		out.Duration = d
+		return out, nil
+	}
+
+	// Cache miss: call agent HTTP endpoint
+	r, err := client.CallBehavior(ctx, req)
+	if err != nil {
+		return out, err
+	}
+
+	// Check guardrails
+	if g := client.Guardrail(); g != nil {
+		if err := g.AddRequest(r.Cost); err != nil {
+			return out, err
+		}
+	}
+
+	// Record in cache
+	agent.GlobalCache.Set(cacheKey, *r)
+
+	var d time.Duration
+	if r.Duration != "" {
+		d, err = time.ParseDuration(r.Duration)
+		if err != nil {
+			return out, fmt.Errorf("invalid duration in agent response: %w", err)
+		}
+	}
+	out.Output = r.Output
+	out.Cost = r.Cost
+	out.Duration = d
+	return out, nil
 }

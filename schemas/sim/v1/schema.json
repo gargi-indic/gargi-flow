@@ -411,8 +411,47 @@
               "$ref": "#/$defs/NumberOrCEL"
             }
           ]
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentConfig"
         }
       }
+    },
+    "AgentConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "format": "uri"
+        },
+        "model": {
+          "type": "string"
+        },
+        "system_prompt": {
+          "type": "string"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "timeout": {
+          "type": "string"
+        },
+        "max_requests": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_cost": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "endpoint"
+      ]
     },
     "ArrivalsSpec": {
       "type": "object",

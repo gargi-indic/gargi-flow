@@ -47,6 +47,9 @@ type Options struct {
 	// graph edge order. Tracing re-evaluates edge conditions, so it is off
 	// by default.
 	Trace bool
+
+	// Replication is the index of this simulation run within an experiment.
+	Replication uint64
 }
 
 // DefaultExecutionID returns the deterministic execution ID used for an
@@ -58,11 +61,15 @@ func DefaultExecutionID(policyID string, world sim.WorldID) engine.ExecutionID {
 // recordingChooser adapts a sim.Policy to nodes.DecisionChooser and records
 // every valid choice.
 type recordingChooser struct {
-	policy    sim.Policy
-	decisions map[engine.NodeID]string
+	policy      sim.Policy
+	decisions   map[engine.NodeID]string
+	replication uint64
 }
 
 func (r *recordingChooser) Choose(ctx context.Context, decision engine.NodeID, obs map[string]any, options []string) (string, error) {
+	if r.replication > 0 && sim.ReplicationFromContext(ctx) == 0 {
+		ctx = sim.WithReplication(ctx, r.replication)
+	}
 	choice, err := r.policy.Choose(ctx, decision, obs, options)
 	if err != nil {
 		return "", err
@@ -124,6 +131,8 @@ type episode struct {
 	state   *engine.GraphState
 	pending virtualTimeHeap
 	record  *sim.RunRecord
+
+	replication uint64
 
 	// trace is set when Options.Trace is: it maps a node id to its index in
 	// the model graph's nodes and lists its incoming edge indexes.
@@ -241,7 +250,7 @@ func RunEpisode(ctx context.Context, m *model.CompiledModel, w sim.World, p sim.
 	if err := nodes.RegisterDefaults(reg, nodes.Dependencies{HTTPClient: noEffects{}, Signals: noEffects{}}); err != nil {
 		return sim.RunRecord{}, err
 	}
-	if err := nodes.RegisterDecision(reg, &recordingChooser{policy: p, decisions: record.Decisions}); err != nil {
+	if err := nodes.RegisterDecision(reg, &recordingChooser{policy: p, decisions: record.Decisions, replication: opts.Replication}); err != nil {
 		return sim.RunRecord{}, err
 	}
 
@@ -251,17 +260,18 @@ func RunEpisode(ctx context.Context, m *model.CompiledModel, w sim.World, p sim.
 	}
 
 	e := &episode{
-		m:        m,
-		world:    w,
-		sampler:  s,
-		latents:  latents,
-		execID:   execID,
-		reg:      reg,
-		nodeDefs: make(map[engine.NodeID]*engine.Node),
-		sink:     opts.Events,
-		seqGen:   reactive.NewSequenceGenerator(0),
-		now:      epoch,
-		record:   &record,
+		m:           m,
+		world:       w,
+		sampler:     s,
+		latents:     latents,
+		execID:      execID,
+		reg:         reg,
+		nodeDefs:    make(map[engine.NodeID]*engine.Node),
+		sink:        opts.Events,
+		seqGen:      reactive.NewSequenceGenerator(0),
+		now:         epoch,
+		record:      &record,
+		replication: opts.Replication,
 	}
 	for _, n := range g.Nodes() {
 		e.nodeDefs[n.ID()] = n
@@ -386,10 +396,11 @@ func (e *episode) start(ctx context.Context, nodeID engine.NodeID, inputs map[st
 		failClass = b.Fail.Class
 	}
 	out, err := behavior.New(cb, failClass).Sample(ctx, e.sampler, sim.BehaviorInput{
-		NodeID:  nodeID,
-		Inputs:  inputs,
-		Latents: e.latents,
-		World:   e.world,
+		NodeID:      nodeID,
+		Inputs:      inputs,
+		Latents:     e.latents,
+		World:       e.world,
+		Replication: e.replication,
 	})
 	if err != nil {
 		return false, fmt.Errorf("node %s: %w", nodeID, err)

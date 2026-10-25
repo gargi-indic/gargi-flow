@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 	"time"
 
@@ -188,6 +189,9 @@ func validateSim(s *Sim) error {
 				errs.Add(fmt.Sprintf("$.behaviors.%s.output.%s", bName, outName), engine.CodeInvalidValue, "value spec must have exactly one key")
 			}
 		}
+		if b.Agent != nil {
+			validateAgentConfig(b.Agent, fmt.Sprintf("$.behaviors.%s.agent", bName), errs)
+		}
 	}
 	for rName, r := range s.Resources {
 		if r.Capacity < 1 {
@@ -203,6 +207,31 @@ func validateSim(s *Sim) error {
 		return errs
 	}
 	return nil
+}
+
+func validateAgentConfig(cfg *AgentConfig, path string, errs *engine.ValidationErrors) {
+	if cfg == nil {
+		return
+	}
+	if cfg.Endpoint == "" {
+		errs.Add(path+".endpoint", engine.CodeMissingRequired, "missing required property endpoint")
+	} else {
+		u, err := url.ParseRequestURI(cfg.Endpoint)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			errs.Add(path+".endpoint", engine.CodeInvalidValue, "endpoint must be a valid URI")
+		}
+	}
+	if cfg.Timeout != "" {
+		if _, err := time.ParseDuration(cfg.Timeout); err != nil {
+			errs.Add(path+".timeout", engine.CodeInvalidValue, "invalid duration format")
+		}
+	}
+	if cfg.MaxRequests < 0 || (cfg.MaxRequests != 0 && cfg.MaxRequests < 1) {
+		errs.Add(path+".max_requests", engine.CodeInvalidValue, "max_requests must be >= 1")
+	}
+	if cfg.MaxCost < 0 {
+		errs.Add(path+".max_cost", engine.CodeInvalidValue, "max_cost must be >= 0")
+	}
 }
 
 func validatePolicy(p *Policy) error {
@@ -222,9 +251,28 @@ func validatePolicy(p *Policy) error {
 		path := fmt.Sprintf("$.decisions.%s", dName)
 		hasRules := len(d.Rules) > 0
 		hasTable := len(d.Table) > 0
+		hasAgent := d.Agent != nil
 
-		if (hasRules && hasTable) || (!hasRules && !hasTable) {
-			errs.Add(path, engine.CodeInvalidValue, "decision must have exactly one of rules or table")
+		count := 0
+		if hasRules {
+			count++
+		}
+		if hasTable {
+			count++
+		}
+		if hasAgent {
+			count++
+		}
+
+		if count != 1 {
+			errs.Add(path, engine.CodeInvalidValue, "decision must have exactly one of rules, table, or agent")
+		}
+
+		if hasAgent {
+			if d.Default != "" {
+				errs.Add(path+".default", engine.CodeInvalidValue, "default is only allowed with table")
+			}
+			validateAgentConfig(d.Agent, path+".agent", errs)
 		}
 
 		if hasRules {
