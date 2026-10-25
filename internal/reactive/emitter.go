@@ -128,12 +128,27 @@ func (e *TransitionEmitter) EmitTransition(
 		if e.policyResolver != nil {
 			polID, polVer = e.policyResolver(newState.NodeID())
 		}
+		var shPolID, shPolVer, shChoice string
+		if newState.Output() != nil {
+			if sc, ok := newState.Output()["shadow_choice"].(string); ok {
+				shChoice = sc
+			}
+			if sp, ok := newState.Output()["shadow_policy_id"].(string); ok {
+				shPolID = sp
+			}
+			if sv, ok := newState.Output()["shadow_policy_version"].(string); ok {
+				shPolVer = sv
+			}
+		}
 		payload = engine.NodeCompletedPayload{
-			Status:        engine.StatusSucceeded,
-			Output:        newState.Output(),
-			Version:       newState.Version(),
-			PolicyID:      polID,
-			PolicyVersion: polVer,
+			Status:              engine.StatusSucceeded,
+			Output:              newState.Output(),
+			Version:             newState.Version(),
+			PolicyID:            polID,
+			PolicyVersion:       polVer,
+			ShadowPolicyID:      shPolID,
+			ShadowPolicyVersion: shPolVer,
+			ShadowChoice:        shChoice,
 		}
 	} else if oldStatus == engine.StatusRunning && newStatus == engine.StatusFailed {
 		eventType = engine.EventTypeNodeFailed

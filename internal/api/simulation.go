@@ -101,7 +101,7 @@ func simulationError(what string, err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, jobs.ErrNoReport):
 		return status.Error(codes.FailedPrecondition, err.Error())
-	case engine.IsStoreNotFound(err):
+	case errors.Is(err, engine.ErrPolicyNotFound), errors.Is(err, engine.ErrDeploymentNotFound), engine.IsStoreNotFound(err):
 		return status.Error(codes.NotFound, err.Error())
 	default:
 		return ToGRPCError(err)
@@ -312,6 +312,112 @@ func (s *SimulationServer) CancelExperiment(ctx context.Context, req *gargiv1.Ca
 		return nil, simulationError("cancelling experiment", err)
 	}
 	return &gargiv1.CancelExperimentResponse{Id: id, Status: toPBExperimentStatus(rec.Status)}, nil
+}
+
+const defaultGraphID = "default"
+
+// DeployPolicy sets the deployment mode of a policy version.
+func (s *SimulationServer) DeployPolicy(ctx context.Context, req *gargiv1.DeployPolicyRequest) (*gargiv1.DeployPolicyResponse, error) {
+	ref := req.GetId()
+	modeStr := req.GetMode()
+
+	if ref == "" {
+		return nil, status.Error(codes.InvalidArgument, "id is required")
+	}
+
+	var mode engine.DeploymentMode
+	switch modeStr {
+	case "live":
+		mode = engine.DeploymentLive
+	case "shadow":
+		mode = engine.DeploymentShadow
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "invalid mode %q, want 'live' or 'shadow'", modeStr)
+	}
+
+	// Ensure the store is a PolicyStore
+	ps, ok := s.store.(engine.PolicyStore)
+	if !ok {
+		return nil, status.Error(codes.Unimplemented, "store does not support policy deployment")
+	}
+
+	var graphID, policyID, version string
+	if strings.Contains(ref, ":") {
+		graphID, policyID, _ = strings.Cut(ref, ":")
+	} else {
+		graphID = defaultGraphID
+		policyID = ref
+	}
+
+	// Remove any version specifier from graph ID, if present
+	if gID, gVer, ok := strings.Cut(graphID, "@"); ok {
+		graphID = gID
+		if version == "" {
+			version = gVer
+		}
+	}
+
+	// Remove any version specifier from policy ID, if present
+	if pID, pVer, ok := strings.Cut(policyID, "@"); ok {
+		policyID = pID
+		if version == "" {
+			version = pVer
+		}
+	}
+
+	// Explicit version in request takes precedence
+	if req.GetVersion() != "" {
+		version = req.GetVersion()
+	}
+
+	if graphID == "" || policyID == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid policy id format %q", ref)
+	}
+
+	// Validate policy exists in PolicyStore
+	rec, err := ps.GetPolicy(ctx, graphID, policyID, version)
+	if errors.Is(err, engine.ErrPolicyNotFound) {
+		// Check if policy exists in a stored model bundle
+		if mb, mErr := s.store.GetModel(ctx, graphID, ""); mErr == nil {
+			var doc []byte
+			var docName string
+			for k, v := range mb.Policies {
+				base := strings.TrimSuffix(strings.TrimSuffix(k, ".yaml"), ".json")
+				if k == policyID || base == policyID {
+					doc = v
+					docName = k
+					break
+				}
+			}
+			if doc != nil {
+				format := "yaml"
+				if strings.HasSuffix(strings.ToLower(docName), ".json") {
+					format = "json"
+				}
+				rec, err = ps.SavePolicy(ctx, &engine.PolicyRecord{
+					ID:       policyID,
+					GraphID:  graphID,
+					Document: doc,
+					Format:   format,
+				})
+			}
+		}
+	}
+	if err != nil {
+		return nil, simulationError("deploying policy", err)
+	}
+
+	dep := &engine.PolicyDeployment{
+		GraphID:       graphID,
+		PolicyID:      policyID,
+		PolicyVersion: rec.Version,
+		Mode:          mode,
+	}
+	if err := ps.SetDeployment(ctx, dep); err != nil {
+		return nil, simulationError("deploying policy", err)
+	}
+
+	return &gargiv1.DeployPolicyResponse{Id: ref, Version: rec.Version, Mode: modeStr}, nil
 }
 
 // GetReport returns one report of a succeeded experiment as JSON:

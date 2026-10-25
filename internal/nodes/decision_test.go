@@ -663,3 +663,109 @@ func TestPolicyDecisionChooser_Errors(t *testing.T) {
 		t.Errorf("expected error when pinned policy not found in store")
 	}
 }
+
+func TestDecisionNode_ShadowModeEvaluation(t *testing.T) {
+	ctx := context.Background()
+	ps := memory.NewPolicyStore()
+
+	// Primary policy: always choose approve
+	primaryYAML := `apiVersion: policy/v1
+id: primary-policy
+version: v1
+decisions:
+  decide:
+    rules:
+      - else: approve
+`
+	_, err := ps.SavePolicy(ctx, &engine.PolicyRecord{
+		ID:       "primary-policy",
+		GraphID:  "shadow-graph",
+		Document: []byte(primaryYAML),
+		Format:   "yaml",
+	})
+	if err != nil {
+		t.Fatalf("SavePolicy primary failed: %v", err)
+	}
+
+	// Shadow policy: always choose reject
+	shadowYAML := `apiVersion: policy/v1
+id: shadow-policy
+version: v1
+decisions:
+  decide:
+    rules:
+      - else: reject
+`
+	_, err = ps.SavePolicy(ctx, &engine.PolicyRecord{
+		ID:       "shadow-policy",
+		GraphID:  "shadow-graph",
+		Document: []byte(shadowYAML),
+		Format:   "yaml",
+	})
+	if err != nil {
+		t.Fatalf("SavePolicy shadow failed: %v", err)
+	}
+
+	// Deploy shadow-policy in Shadow mode
+	if err := ps.SetDeployment(ctx, &engine.PolicyDeployment{
+		GraphID:       "shadow-graph",
+		PolicyID:      "shadow-policy",
+		PolicyVersion: "1",
+		Mode:          engine.DeploymentShadow,
+	}); err != nil {
+		t.Fatalf("SetDeployment failed: %v", err)
+	}
+
+	reg := engine.NewRegistry()
+	if err := nodes.RegisterDefaults(reg, nodes.Dependencies{PolicyStore: ps}); err != nil {
+		t.Fatalf("RegisterDefaults failed: %v", err)
+	}
+
+	node, err := reg.Instantiate("decision", map[string]any{
+		"options": []any{"approve", "reject"},
+		"policy":  "primary-policy",
+	})
+	if err != nil {
+		t.Fatalf("Instantiate failed: %v", err)
+	}
+
+	nd, _ := engine.NewNode("decide", "decision", nil)
+	g, _ := engine.NewGraph("shadow-graph", []*engine.Node{nd}, nil)
+	st, _ := engine.NewGraphState("exec-shadow-1", g)
+
+	nc := &fakeNodeContext{
+		nodeID:        "decide",
+		state:         st,
+		config:        map[string]any{"policy": "primary-policy"},
+		policyID:      "primary-policy",
+		policyVersion: "",
+	}
+
+	mut, err := node.Execute(ctx, nc)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	// Primary decision proceeds with primary policy
+	if mut.Set["choice"] != "approve" {
+		t.Errorf("expected primary choice approve, got %v", mut.Set["choice"])
+	}
+
+	// Shadow policy is also evaluated and recorded
+	if mut.Set["shadow_choice"] != "reject" {
+		t.Errorf("expected shadow choice reject, got %v", mut.Set["shadow_choice"])
+	}
+	if mut.Set["shadow_policy_id"] != "shadow-policy" {
+		t.Errorf("expected shadow policy id shadow-policy, got %v", mut.Set["shadow_policy_id"])
+	}
+	if mut.Set["shadow_policy_version"] != "1" {
+		t.Errorf("expected shadow policy version 1, got %v", mut.Set["shadow_policy_version"])
+	}
+
+	if nc.policyVersion != "1" {
+		t.Errorf("expected resolved primary version 1, got %v", nc.policyVersion)
+	}
+	if nc.shadowChoice != "reject" {
+		t.Errorf("expected recorded shadow choice reject, got %v", nc.shadowChoice)
+	}
+}

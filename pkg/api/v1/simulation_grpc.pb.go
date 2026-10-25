@@ -26,6 +26,7 @@ const (
 	SimulationService_CreateExperiment_FullMethodName         = "/gargi.v1.SimulationService/CreateExperiment"
 	SimulationService_GetExperiment_FullMethodName            = "/gargi.v1.SimulationService/GetExperiment"
 	SimulationService_CancelExperiment_FullMethodName         = "/gargi.v1.SimulationService/CancelExperiment"
+	SimulationService_DeployPolicy_FullMethodName             = "/gargi.v1.SimulationService/DeployPolicy"
 	SimulationService_GetReport_FullMethodName                = "/gargi.v1.SimulationService/GetReport"
 	SimulationService_GetRun_FullMethodName                   = "/gargi.v1.SimulationService/GetRun"
 	SimulationService_StreamExperimentProgress_FullMethodName = "/gargi.v1.SimulationService/StreamExperimentProgress"
@@ -53,6 +54,8 @@ type SimulationServiceClient interface {
 	GetExperiment(ctx context.Context, in *GetExperimentRequest, opts ...grpc.CallOption) (*GetExperimentResponse, error)
 	// CancelExperiment cancels a queued or running experiment.
 	CancelExperiment(ctx context.Context, in *CancelExperimentRequest, opts ...grpc.CallOption) (*CancelExperimentResponse, error)
+	// DeployPolicy sets the deployment mode of a policy.
+	DeployPolicy(ctx context.Context, in *DeployPolicyRequest, opts ...grpc.CallOption) (*DeployPolicyResponse, error)
 	// GetReport returns one report of a finished experiment.
 	GetReport(ctx context.Context, in *GetReportRequest, opts ...grpc.CallOption) (*GetReportResponse, error)
 	// GetRun replays one simulated run as an engine event stream.
@@ -141,6 +144,16 @@ func (c *simulationServiceClient) CancelExperiment(ctx context.Context, in *Canc
 	return out, nil
 }
 
+func (c *simulationServiceClient) DeployPolicy(ctx context.Context, in *DeployPolicyRequest, opts ...grpc.CallOption) (*DeployPolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeployPolicyResponse)
+	err := c.cc.Invoke(ctx, SimulationService_DeployPolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *simulationServiceClient) GetReport(ctx context.Context, in *GetReportRequest, opts ...grpc.CallOption) (*GetReportResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetReportResponse)
@@ -202,6 +215,8 @@ type SimulationServiceServer interface {
 	GetExperiment(context.Context, *GetExperimentRequest) (*GetExperimentResponse, error)
 	// CancelExperiment cancels a queued or running experiment.
 	CancelExperiment(context.Context, *CancelExperimentRequest) (*CancelExperimentResponse, error)
+	// DeployPolicy sets the deployment mode of a policy.
+	DeployPolicy(context.Context, *DeployPolicyRequest) (*DeployPolicyResponse, error)
 	// GetReport returns one report of a finished experiment.
 	GetReport(context.Context, *GetReportRequest) (*GetReportResponse, error)
 	// GetRun replays one simulated run as an engine event stream.
@@ -240,6 +255,9 @@ func (UnimplementedSimulationServiceServer) GetExperiment(context.Context, *GetE
 }
 func (UnimplementedSimulationServiceServer) CancelExperiment(context.Context, *CancelExperimentRequest) (*CancelExperimentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelExperiment not implemented")
+}
+func (UnimplementedSimulationServiceServer) DeployPolicy(context.Context, *DeployPolicyRequest) (*DeployPolicyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeployPolicy not implemented")
 }
 func (UnimplementedSimulationServiceServer) GetReport(context.Context, *GetReportRequest) (*GetReportResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetReport not implemented")
@@ -397,6 +415,24 @@ func _SimulationService_CancelExperiment_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SimulationService_DeployPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeployPolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SimulationServiceServer).DeployPolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SimulationService_DeployPolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SimulationServiceServer).DeployPolicy(ctx, req.(*DeployPolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SimulationService_GetReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetReportRequest)
 	if err := dec(in); err != nil {
@@ -478,6 +514,10 @@ var SimulationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelExperiment",
 			Handler:    _SimulationService_CancelExperiment_Handler,
+		},
+		{
+			MethodName: "DeployPolicy",
+			Handler:    _SimulationService_DeployPolicy_Handler,
 		},
 		{
 			MethodName: "GetReport",

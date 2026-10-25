@@ -96,8 +96,10 @@ type SweepParameterInput struct {
 
 // DeployPolicyInput specifies the arguments for deploy_policy.
 type DeployPolicyInput struct {
-	ModelID string `json:"model_id" jsonschema:"model id"`
-	Policy  string `json:"policy" jsonschema:"policy id to deploy"`
+	ModelID string `json:"model_id,omitempty" jsonschema:"model id (optional if policy specifies model or default)"`
+	Policy  string `json:"policy" jsonschema:"policy id or reference to deploy"`
+	Version string `json:"version,omitempty" jsonschema:"policy version to deploy"`
+	Mode    string `json:"mode,omitempty" jsonschema:"deployment mode: shadow or live (defaults to shadow)"`
 }
 
 // IngestOutcomeInput specifies the arguments for ingest_outcome.
@@ -534,10 +536,98 @@ func (s *workspaceServer) sweepParameter(ctx context.Context, _ *mcp.CallToolReq
 	}, nil, nil
 }
 
-func (s *workspaceServer) deployPolicy(_ context.Context, _ *mcp.CallToolRequest, _ DeployPolicyInput) (*mcp.CallToolResult, any, error) {
+func (s *workspaceServer) deployPolicy(ctx context.Context, _ *mcp.CallToolRequest, in DeployPolicyInput) (*mcp.CallToolResult, any, error) {
+	if in.ModelID != "" && !modelIDPattern.MatchString(in.ModelID) {
+		return toolErrorf(engine.CodeInvalidValue, "invalid model id"), nil, nil
+	}
+	if in.Policy == "" {
+		return toolErrorf(engine.CodeInvalidValue, "policy is required"), nil, nil
+	}
+
+	mode := in.Mode
+	if mode == "" {
+		mode = "shadow"
+	}
+	if mode != "shadow" && mode != "live" {
+		return toolErrorf(engine.CodeInvalidValue, "mode must be 'shadow' or 'live'"), nil, nil
+	}
+
+	ref := in.Policy
+	if in.ModelID != "" && !strings.Contains(ref, ":") {
+		ref = in.ModelID + ":" + in.Policy
+	}
+	if in.Version != "" && !strings.Contains(ref, "@") {
+		ref = ref + "@" + in.Version
+	}
+
+	// If policy is in the in-memory workspace model, ensure it's saved in the backend's policy store
+	modelID := in.ModelID
+	policyName := in.Policy
+	if strings.Contains(in.Policy, ":") {
+		modelID, policyName, _ = strings.Cut(in.Policy, ":")
+	}
+	policyName, _, _ = strings.Cut(policyName, "@")
+
+	if modelID != "" {
+		s.ws.mu.Lock()
+		docs, hasModel := s.ws.models[modelID]
+		s.ws.mu.Unlock()
+		if hasModel && docs != nil {
+			policyDoc, ok := docs.policies[policyName]
+			if !ok {
+				policyDoc, ok = docs.policies[strings.TrimSuffix(policyName, ".yaml")]
+			}
+			if !ok {
+				policyDoc, ok = docs.policies[policyName+".yaml"]
+			}
+			if ok {
+				if l, ok := s.backend.(interface{ PolicyStore() engine.PolicyStore }); ok && l.PolicyStore() != nil {
+					policyBytes, _ := yaml.Marshal(policyDoc)
+					format := "yaml"
+					if strings.HasSuffix(strings.ToLower(policyName), ".json") {
+						format = "json"
+					}
+					baseName := strings.TrimSuffix(strings.TrimSuffix(policyName, ".yaml"), ".json")
+					_, _ = l.PolicyStore().SavePolicy(ctx, &engine.PolicyRecord{
+						ID:       baseName,
+						GraphID:  modelID,
+						Document: policyBytes,
+						Format:   format,
+					})
+					_, _ = l.PolicyStore().SavePolicy(ctx, &engine.PolicyRecord{
+						ID:       baseName + ".yaml",
+						GraphID:  modelID,
+						Document: policyBytes,
+						Format:   format,
+					})
+				}
+			}
+		}
+	}
+
+	res, err := s.backend.DeployPolicy(ctx, ref, mode)
+	if err != nil {
+		return toolError(simbackend.IssuesOf(err, engine.CodeInvalidValue), nil), nil, nil
+	}
+
+	respData := map[string]string{
+		"status":  "ok",
+		"policy":  res.ID,
+		"version": res.Version,
+		"mode":    res.Mode,
+		"message": fmt.Sprintf("policy %q version %q deployed in %s mode", res.ID, res.Version, res.Mode),
+	}
+	b, err := json.Marshal(respData)
+	if err != nil {
+		return toolErrorf(engine.CodeInvalidValue, "failed to marshal response: %v", err), nil, nil
+	}
+
 	return &mcp.CallToolResult{
-		IsError: true,
-		Content: []mcp.Content{&mcp.TextContent{Text: `{"code": "unsupported", "message": "not available until P3 (Epic #159)"}`}},
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: string(b),
+			},
+		},
 	}, nil, nil
 }
 

@@ -129,3 +129,27 @@ func TestServerE2E_Cancel(t *testing.T) {
 	require.Equal(t, 2, code)
 	require.Contains(t, errOut, "usage: gargi sim cancel")
 }
+
+func TestServerE2E_DeployPolicy(t *testing.T) {
+	url := startServer(t)
+
+	// Save model with policy by running experiment-policy.yaml on server
+	exp := filepath.Join(simbackendTestdata, "experiment-policy.yaml")
+	code, _, errOut := gargi(t, "sim", "run", exp, "--server", url)
+	require.Equal(t, 0, code, errOut)
+
+	// 1. Deploy in shadow mode
+	code, out, errOut := gargi(t, "policy", "deploy", "loan-underwriting:recession-v1.yaml", "--mode", "shadow", "--server", url)
+	require.Equal(t, 0, code, errOut)
+	require.Equal(t, "Deployed policy loan-underwriting:recession-v1.yaml version 1 in shadow mode\n", out)
+
+	// 2. Deploy in live mode with @version
+	code, out, errOut = gargi(t, "policy", "deploy", "loan-underwriting:recession-v1.yaml@1", "--mode", "live", "--server", url)
+	require.Equal(t, 0, code, errOut)
+	require.Equal(t, "Deployed policy loan-underwriting:recession-v1.yaml version 1 in live mode\n", out)
+
+	// 3. Error on missing policy
+	code, _, errOut = gargi(t, "policy", "deploy", "loan-underwriting:nonexistent", "--mode", "shadow", "--server", url)
+	require.Equal(t, 1, code)
+	require.Contains(t, errOut, "gargi policy deploy: ")
+}

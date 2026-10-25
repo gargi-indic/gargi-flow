@@ -23,12 +23,13 @@ var _ sim.ExperimentStore = (*ExperimentStore)(nil)
 const DefaultExperimentPageSize = 50
 
 // ExperimentStore is an in-memory, thread-safe sim.ExperimentStore. Bundles
-// and records are deep-copied on every read and write.
+// and records are deep-copied on every read and write. It also implements engine.PolicyStore.
 type ExperimentStore struct {
 	mu          sync.RWMutex
 	models      map[string][]sim.ModelBundle // versions in order, index = version-1
 	experiments map[string]sim.ExperimentRecord
 	now         func() time.Time
+	*PolicyStore
 }
 
 // NewExperimentStore returns an empty in-memory experiment store.
@@ -37,6 +38,7 @@ func NewExperimentStore() *ExperimentStore {
 		models:      make(map[string][]sim.ModelBundle),
 		experiments: make(map[string]sim.ExperimentRecord),
 		now:         func() time.Time { return time.Now().UTC() },
+		PolicyStore: NewPolicyStore(),
 	}
 }
 
@@ -86,6 +88,29 @@ func (s *ExperimentStore) SaveModel(ctx context.Context, b sim.ModelBundle) (sim
 	saved.Version = strconv.Itoa(len(s.models[b.ID]) + 1)
 	saved.CreatedAt = s.now()
 	s.models[b.ID] = append(s.models[b.ID], saved)
+	if s.PolicyStore != nil {
+		for name, doc := range b.Policies {
+			format := "yaml"
+			if strings.HasSuffix(strings.ToLower(name), ".json") {
+				format = "json"
+			}
+			policyID := strings.TrimSuffix(strings.TrimSuffix(name, ".yaml"), ".json")
+			_, _ = s.SavePolicy(ctx, &engine.PolicyRecord{
+				ID:       policyID,
+				GraphID:  b.ID,
+				Document: doc,
+				Format:   format,
+			})
+			if policyID != name {
+				_, _ = s.SavePolicy(ctx, &engine.PolicyRecord{
+					ID:       name,
+					GraphID:  b.ID,
+					Document: doc,
+					Format:   format,
+				})
+			}
+		}
+	}
 	return cloneBundle(saved), nil
 }
 

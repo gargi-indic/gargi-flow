@@ -427,3 +427,167 @@ decisions:
 		assert.Equal(t, engine.StatusFailed, res.Status)
 	})
 }
+
+// TestIssue162_ShadowModeEvaluationAndExecutionPathUnchanged verifies that when a deployment
+// is in shadow mode:
+// 1. The primary decision proceeds with the live/unpinned policy choice ("fast_path").
+// 2. The shadow policy is evaluated against the same observations ("slow_path").
+// 3. Shadow choice is recorded in output and events (counterfactual).
+// 4. The actual execution path follows the primary choice (fast_action runs, slow_action is skipped).
+func TestIssue162_ShadowModeEvaluationAndExecutionPathUnchanged(t *testing.T) {
+	ctx := context.Background()
+	ps := memory.NewPolicyStore()
+
+	// Primary policy: always chooses fast_path
+	v1YAML := `apiVersion: policy/v1
+id: primary-policy
+version: v1
+decisions:
+  make_decision:
+    rules:
+      - else: fast_path
+`
+	_, err := ps.SavePolicy(ctx, &engine.PolicyRecord{
+		ID:       "primary-policy",
+		GraphID:  "shadow-flow-graph",
+		Document: []byte(v1YAML),
+		Format:   "yaml",
+	})
+	require.NoError(t, err)
+
+	// Shadow policy: always chooses slow_path
+	v2YAML := `apiVersion: policy/v1
+id: shadow-policy
+version: v1
+decisions:
+  make_decision:
+    rules:
+      - else: slow_path
+`
+	_, err = ps.SavePolicy(ctx, &engine.PolicyRecord{
+		ID:       "shadow-policy",
+		GraphID:  "shadow-flow-graph",
+		Document: []byte(v2YAML),
+		Format:   "yaml",
+	})
+	require.NoError(t, err)
+
+	// Set deployment to Shadow mode for shadow-policy
+	require.NoError(t, ps.SetDeployment(ctx, &engine.PolicyDeployment{
+		GraphID:       "shadow-flow-graph",
+		PolicyID:      "shadow-policy",
+		PolicyVersion: "1",
+		Mode:          engine.DeploymentShadow,
+	}))
+
+	reg := engine.NewRegistry()
+	require.NoError(t, nodes.RegisterDefaults(reg, nodes.Dependencies{
+		Signals:     orchestrator.NewTemporalSignalSource(),
+		PolicyStore: ps,
+	}))
+
+	suite := &testsuite.WorkflowTestSuite{}
+	env := suite.NewTestWorkflowEnvironment()
+
+	na := orchestrator.NewNodeActivities(reg)
+	env.RegisterActivityWithOptions(na.ExecuteNodeActivity, activity.RegisterOptions{
+		Name: orchestrator.ExecuteNodeActivityName,
+	})
+
+	def := &engine.GraphDefinition{
+		ID:         "shadow-flow-graph",
+		APIVersion: "graph/v1",
+		Nodes: []engine.NodeDefinition{
+			{
+				ID:   "input_data",
+				Type: "transform",
+				Config: map[string]any{
+					"set": map[string]any{"score": 0.95},
+				},
+			},
+			{
+				ID:   "make_decision",
+				Type: "decision",
+				Config: map[string]any{
+					"options":  []any{"fast_path", "slow_path"},
+					"observes": []any{"input_data.output.score"},
+					"policy":   "primary-policy",
+				},
+			},
+			{
+				ID:   "fast_action",
+				Type: "passthrough",
+			},
+			{
+				ID:   "slow_action",
+				Type: "passthrough",
+			},
+		},
+		Edges: []engine.EdgeDefinition{
+			{From: "input_data", To: "make_decision"},
+			{
+				From:      "make_decision",
+				To:        "fast_action",
+				Condition: `make_decision.output.choice == "fast_path"`,
+			},
+			{
+				From:      "make_decision",
+				To:        "slow_action",
+				Condition: `make_decision.output.choice == "slow_path"`,
+			},
+		},
+	}
+
+	sink := &memoryEventSink{}
+	runner := orchestrator.NewWorkflowRunner(reg).WithEventSink(sink)
+	env.RegisterWorkflow(runner.GraphExecutionWorkflow)
+
+	input := orchestrator.GraphWorkflowInput{
+		ExecutionID: "exec-shadow-flow-1",
+		Definition:  def,
+	}
+
+	env.ExecuteWorkflow(runner.GraphExecutionWorkflow, input)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+
+	var res orchestrator.GraphWorkflowResult
+	require.NoError(t, env.GetWorkflowResult(&res))
+	assert.Equal(t, engine.StatusSucceeded, res.Status)
+
+	// Decision outputs verification
+	decideState := res.FinalState.NodeState("make_decision")
+	require.NotNil(t, decideState)
+	assert.Equal(t, engine.StatusSucceeded, decideState.Status())
+	assert.Equal(t, "fast_path", decideState.Output()["choice"])
+	assert.Equal(t, "slow_path", decideState.Output()["shadow_choice"])
+	assert.Equal(t, "shadow-policy", decideState.Output()["shadow_policy_id"])
+	assert.Equal(t, "1", decideState.Output()["shadow_policy_version"])
+
+	// Execution path verification: fast_action ran, slow_action was skipped!
+	fastState := res.FinalState.NodeState("fast_action")
+	require.NotNil(t, fastState)
+	assert.Equal(t, engine.StatusSucceeded, fastState.Status())
+
+	slowState := res.FinalState.NodeState("slow_action")
+	require.NotNil(t, slowState)
+	assert.Equal(t, engine.StatusSkipped, slowState.Status())
+
+	// Verify events: node_completed contains shadow fields
+	var foundCompletedEvent *engine.Event
+	for _, ev := range sink.Events() {
+		if ev.Type() == engine.EventTypeNodeCompleted && ev.NodeID() == "make_decision" {
+			foundCompletedEvent = ev
+			break
+		}
+	}
+	require.NotNil(t, foundCompletedEvent)
+	payload := foundCompletedEvent.Payload().(engine.NodeCompletedPayload)
+	assert.Equal(t, "primary-policy", payload.PolicyID)
+	assert.Equal(t, "1", payload.PolicyVersion)
+	assert.Equal(t, "shadow-policy", payload.ShadowPolicyID)
+	assert.Equal(t, "1", payload.ShadowPolicyVersion)
+	assert.Equal(t, "slow_path", payload.ShadowChoice)
+	assert.Equal(t, "slow_path", payload.Output["shadow_choice"])
+}

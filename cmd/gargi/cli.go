@@ -49,6 +49,7 @@ const usage = `usage:
   gargi sim cancel <experiment-id> --server URL
   gargi policy explain <policy.yaml|policy.json>
   gargi policy explain <model-id>[@<version>]:<policy-name> --server URL
+  gargi policy deploy <policy-id>[@<version>] --mode shadow|live [--server URL]
   gargi mcp serve (--stdio | --http ADDR)
   gargi version
 `
@@ -105,11 +106,19 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		return mcpServe(args[2:], stdout, stderr)
 	case "policy":
-		if len(args) < 2 || args[1] != "explain" {
+		if len(args) < 2 {
 			printf(stderr, "%s", usage)
 			return exitUsage
 		}
-		return policyExplain(args[2:], stdout, stderr)
+		switch args[1] {
+		case "explain":
+			return policyExplain(args[2:], stdout, stderr)
+		case "deploy":
+			return policyDeploy(args[2:], stdout, stderr)
+		default:
+			printf(stderr, "%s", usage)
+			return exitUsage
+		}
 	case "help", "-h", "-help", "--help":
 		printf(stdout, "%s", usage)
 		return exitOK
@@ -205,6 +214,44 @@ func policyExplain(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 	printf(stdout, "%s", out)
+	return exitOK
+}
+
+// policyDeploy implements gargi policy deploy: it deploys a policy version
+// in shadow or live mode.
+func policyDeploy(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("gargi policy deploy", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	server := fs.String("server", "", "URL of the gargi server")
+	mode := fs.String("mode", "", "Deployment mode: shadow or live")
+	refs, err := parseInterspersed(fs, args)
+	if err != nil {
+		return parseExit(err)
+	}
+	if len(refs) != 1 || *mode == "" {
+		printf(stderr, "%s\n", "usage: gargi policy deploy <policy-id>[@<version>] --mode shadow|live [--server URL]")
+		return exitUsage
+	}
+	if *mode != "shadow" && *mode != "live" {
+		printf(stderr, "gargi policy deploy: invalid mode %q, want 'shadow' or 'live'\n", *mode)
+		return exitUsage
+	}
+	var backend simbackend.Backend = simbackend.NewLocal()
+	if *server != "" {
+		remote, err := simbackend.NewRemote(*server, nil)
+		if err != nil {
+			printf(stderr, "gargi: %v\n", err)
+			return exitUsage
+		}
+		backend = remote
+	}
+	res, err := backend.DeployPolicy(context.Background(), refs[0], *mode)
+	if err != nil {
+		printf(stderr, "gargi policy deploy: %v\n", err)
+		return exitError
+	}
+	policyID, _, _ := strings.Cut(refs[0], "@")
+	printf(stdout, "Deployed policy %s version %s in %s mode\n", policyID, res.Version, res.Mode)
 	return exitOK
 }
 

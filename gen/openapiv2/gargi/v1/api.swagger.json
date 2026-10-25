@@ -685,6 +685,45 @@
           "SimulationService"
         ]
       }
+    },
+    "/v1/policies/{id}:deploy": {
+      "post": {
+        "summary": "DeployPolicy sets the deployment mode of a policy.",
+        "operationId": "SimulationService_DeployPolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeployPolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SimulationServiceDeployPolicyBody"
+            }
+          }
+        ],
+        "tags": [
+          "SimulationService"
+        ]
+      }
     }
   },
   "definitions": {
@@ -710,6 +749,19 @@
     "SimulationServiceCancelExperimentBody": {
       "type": "object",
       "description": "CancelExperimentRequest cancels a queued or running experiment."
+    },
+    "SimulationServiceDeployPolicyBody": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "description": "\"shadow\" or \"live\"."
+        }
+      },
+      "description": "DeployPolicyRequest sets the deployment mode of a policy version."
     },
     "protobufAny": {
       "type": "object",
@@ -804,6 +856,21 @@
         }
       },
       "description": "CreateExperimentResponse returns the queued experiment."
+    },
+    "v1DeployPolicyResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        }
+      },
+      "description": "DeployPolicyResponse returns the updated deployment configuration."
     },
     "v1ExecutionStatus": {
       "type": "string",

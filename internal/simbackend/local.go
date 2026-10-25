@@ -14,18 +14,27 @@ import (
 	"github.com/gargi-indic/gargi-flow/internal/sim/explain"
 	"github.com/gargi-indic/gargi-flow/internal/sim/jobs"
 	"github.com/gargi-indic/gargi-flow/internal/sim/model"
+	"github.com/gargi-indic/gargi-flow/internal/store/memory"
 	"github.com/gargi-indic/gargi-flow/pkg/engine"
 	"github.com/gargi-indic/gargi-flow/pkg/sim"
 )
 
 // Local is a Backend that runs everything in-process. It keeps no state and
 // no experiment store.
-type Local struct{}
+type Local struct {
+	store engine.PolicyStore
+}
 
 var _ Backend = (*Local)(nil)
 
 // NewLocal returns an in-process Backend.
-func NewLocal() *Local { return &Local{} }
+func NewLocal() *Local { return &Local{store: memory.NewPolicyStore()} }
+
+// NewLocalWithStore returns an in-process Backend with the given policy store.
+func NewLocalWithStore(store engine.PolicyStore) *Local { return &Local{store: store} }
+
+// PolicyStore returns the underlying policy store.
+func (l *Local) PolicyStore() engine.PolicyStore { return l.store }
 
 // registry returns a node registry able to compile simulation models: the
 // default reference nodes plus a decision node whose chooser the kernel
@@ -209,4 +218,72 @@ func (*Local) ExplainPolicy(_ context.Context, ref string) (string, error) {
 // Cancel is not supported by Local, which keeps no experiment store.
 func (*Local) Cancel(_ context.Context, experimentID string) error {
 	return fmt.Errorf("cancel experiment %q: local backend keeps no experiment store: %w", experimentID, ErrUnsupported)
+}
+
+// DeployPolicy sets the deployment mode of a policy version in the local policy store.
+func (l *Local) DeployPolicy(ctx context.Context, ref string, mode string) (*DeployResult, error) {
+	if l.store == nil {
+		return nil, fmt.Errorf("deploy_policy: local backend has no policy store: %w", ErrUnsupported)
+	}
+	if mode != "live" && mode != "shadow" {
+		return nil, fmt.Errorf("invalid mode %q: want 'live' or 'shadow'", mode)
+	}
+	if ref == "" {
+		return nil, errors.New("id is required")
+	}
+
+	var graphID, policyID, version string
+	if strings.Contains(ref, ":") {
+		graphID, policyID, _ = strings.Cut(ref, ":")
+	} else {
+		graphID = "default"
+		policyID = ref
+	}
+
+	if gID, gVer, ok := strings.Cut(graphID, "@"); ok {
+		graphID = gID
+		if version == "" {
+			version = gVer
+		}
+	}
+
+	if pID, pVer, ok := strings.Cut(policyID, "@"); ok {
+		policyID = pID
+		if version == "" {
+			version = pVer
+		}
+	}
+
+	if graphID == "" || policyID == "" {
+		return nil, fmt.Errorf("invalid policy id format %q", ref)
+	}
+
+	rec, err := l.store.GetPolicy(ctx, graphID, policyID, version)
+	if errors.Is(err, engine.ErrPolicyNotFound) {
+		base := strings.TrimSuffix(strings.TrimSuffix(policyID, ".yaml"), ".json")
+		if base != policyID {
+			rec, err = l.store.GetPolicy(ctx, graphID, base, version)
+		} else {
+			rec, err = l.store.GetPolicy(ctx, graphID, policyID+".yaml", version)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	dep := &engine.PolicyDeployment{
+		GraphID:       graphID,
+		PolicyID:      policyID,
+		PolicyVersion: rec.Version,
+		Mode:          engine.DeploymentMode(mode),
+	}
+	if err := l.store.SetDeployment(ctx, dep); err != nil {
+		return nil, err
+	}
+
+	return &DeployResult{
+		ID:      ref,
+		Version: rec.Version,
+		Mode:    mode,
+	}, nil
 }

@@ -198,6 +198,31 @@ func TestSimulationGRPC_EveryRPC(t *testing.T) {
 	require.Equal(t, gargiv1.ExperimentStatus_EXPERIMENT_STATUS_SUCCEEDED, cancelled.GetStatus())
 	_, err = client.CancelExperiment(ctx, &gargiv1.CancelExperimentRequest{Id: "missing"})
 	require.Equal(t, codes.NotFound, status.Code(err))
+
+	// DeployPolicy: shadow and live modes
+	depRes, err := client.DeployPolicy(ctx, &gargiv1.DeployPolicyRequest{
+		Id:   "loan-underwriting:recession-v1.yaml",
+		Mode: "shadow",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "loan-underwriting:recession-v1.yaml", depRes.GetId())
+	require.Equal(t, "1", depRes.GetVersion())
+	require.Equal(t, "shadow", depRes.GetMode())
+
+	depResLive, err := client.DeployPolicy(ctx, &gargiv1.DeployPolicyRequest{
+		Id:   "loan-underwriting:recession-v1.yaml",
+		Mode: "live",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "live", depResLive.GetMode())
+
+	// DeployPolicy errors
+	_, err = client.DeployPolicy(ctx, &gargiv1.DeployPolicyRequest{Id: "loan-underwriting:recession-v1.yaml", Mode: "invalid"})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	_, err = client.DeployPolicy(ctx, &gargiv1.DeployPolicyRequest{Id: "", Mode: "shadow"})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	_, err = client.DeployPolicy(ctx, &gargiv1.DeployPolicyRequest{Id: "loan-underwriting:missing-policy", Mode: "shadow"})
+	require.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestSimulationGRPC_StreamFollowsRunningExperiment(t *testing.T) {

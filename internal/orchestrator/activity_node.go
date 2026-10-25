@@ -40,10 +40,13 @@ type NodeActivityInput struct {
 
 // NodeActivityResult is the output returned on successful activity completion.
 type NodeActivityResult struct {
-	NodeID        engine.NodeID         `json:"nodeId"`
-	Mutation      *engine.StateMutation `json:"mutation,omitempty"`
-	PolicyID      string                `json:"policyId,omitempty"`
-	PolicyVersion string                `json:"policyVersion,omitempty"`
+	NodeID              engine.NodeID         `json:"nodeId"`
+	Mutation            *engine.StateMutation `json:"mutation,omitempty"`
+	PolicyID            string                `json:"policyId,omitempty"`
+	PolicyVersion       string                `json:"policyVersion,omitempty"`
+	ShadowPolicyID      string                `json:"shadowPolicyId,omitempty"`
+	ShadowPolicyVersion string                `json:"shadowPolicyVersion,omitempty"`
+	ShadowChoice        string                `json:"shadowChoice,omitempty"`
 }
 
 // NodeActivities holds dependencies for executing graph nodes as Temporal activities.
@@ -60,14 +63,17 @@ func NewNodeActivities(registry *engine.Registry) *NodeActivities {
 
 // executeNodeContext implements engine.NodeContext.
 type executeNodeContext struct {
-	execID        engine.ExecutionID
-	nodeID        engine.NodeID
-	config        map[string]any
-	inputs        map[string]any
-	state         *engine.GraphState
-	attempt       int
-	policyID      string
-	policyVersion string
+	execID              engine.ExecutionID
+	nodeID              engine.NodeID
+	config              map[string]any
+	inputs              map[string]any
+	state               *engine.GraphState
+	attempt             int
+	policyID            string
+	policyVersion       string
+	shadowPolicyID      string
+	shadowPolicyVersion string
+	shadowChoice        string
 }
 
 func (c *executeNodeContext) ExecutionID() engine.ExecutionID { return c.execID }
@@ -91,13 +97,22 @@ func (c *executeNodeContext) Inputs() map[string]any {
 	}
 	return c.inputs
 }
-func (c *executeNodeContext) State() *engine.GraphState { return c.state }
-func (c *executeNodeContext) Attempt() int              { return c.attempt }
-func (c *executeNodeContext) PolicyID() string          { return c.policyID }
-func (c *executeNodeContext) PolicyVersion() string     { return c.policyVersion }
+func (c *executeNodeContext) State() *engine.GraphState   { return c.state }
+func (c *executeNodeContext) Attempt() int                { return c.attempt }
+func (c *executeNodeContext) PolicyID() string            { return c.policyID }
+func (c *executeNodeContext) PolicyVersion() string       { return c.policyVersion }
+func (c *executeNodeContext) ShadowPolicyID() string      { return c.shadowPolicyID }
+func (c *executeNodeContext) ShadowPolicyVersion() string { return c.shadowPolicyVersion }
+func (c *executeNodeContext) ShadowChoice() string        { return c.shadowChoice }
 func (c *executeNodeContext) SetResolvedPolicy(policyID, version string) {
 	c.policyID = policyID
 	c.policyVersion = version
+}
+
+func (c *executeNodeContext) SetShadowPolicy(policyID, version, choice string) {
+	c.shadowPolicyID = policyID
+	c.shadowPolicyVersion = version
+	c.shadowChoice = choice
 }
 
 func deepCopyMap(m map[string]any) map[string]any {
@@ -266,10 +281,13 @@ func (a *NodeActivities) ExecuteNodeActivity(
 	span.SetStatus(codes.Ok, "success")
 
 	return &NodeActivityResult{
-		NodeID:        input.NodeID,
-		Mutation:      mutation,
-		PolicyID:      nodeCtx.PolicyID(),
-		PolicyVersion: nodeCtx.PolicyVersion(),
+		NodeID:              input.NodeID,
+		Mutation:            mutation,
+		PolicyID:            nodeCtx.PolicyID(),
+		PolicyVersion:       nodeCtx.PolicyVersion(),
+		ShadowPolicyID:      nodeCtx.ShadowPolicyID(),
+		ShadowPolicyVersion: nodeCtx.ShadowPolicyVersion(),
+		ShadowChoice:        nodeCtx.ShadowChoice(),
 	}, nil
 }
 
