@@ -229,10 +229,14 @@ func (r *WorkflowRunner) GraphExecutionWorkflow(
 				delete(waitingSignals, sig.TargetNodeID)
 				inFlightCount--
 
-				mut := engine.NewStateMutation(sig.TargetNodeID, 0, nil, map[string]any{
+				setMap := map[string]any{
 					"signal":  entry.signalName,
 					"payload": payload,
-				}, nil, nil)
+				}
+				for k, v := range payload {
+					setMap[k] = v
+				}
+				mut := engine.NewStateMutation(sig.TargetNodeID, 0, nil, setMap, nil, nil)
 				completedOutcomes = append(completedOutcomes, activityOutcome{
 					nodeID: sig.TargetNodeID,
 					result: &NodeActivityResult{NodeID: sig.TargetNodeID, Mutation: &mut},
@@ -357,10 +361,14 @@ func (r *WorkflowRunner) GraphExecutionWorkflow(
 						err:    engine.NewNonRetryableError(fmt.Errorf("signal is required")),
 					})
 				} else if payload, ok := signalRouter.ReceiveNamedSignal(nodeID, sigName); ok {
-					mut := engine.NewStateMutation(nodeID, 0, nil, map[string]any{
+					setMap := map[string]any{
 						"signal":  sigName,
 						"payload": payload,
-					}, nil, nil)
+					}
+					for k, v := range payload {
+						setMap[k] = v
+					}
+					mut := engine.NewStateMutation(nodeID, 0, nil, setMap, nil, nil)
 					completedOutcomes = append(completedOutcomes, activityOutcome{
 						nodeID: nodeID,
 						result: &NodeActivityResult{NodeID: nodeID, Mutation: &mut},

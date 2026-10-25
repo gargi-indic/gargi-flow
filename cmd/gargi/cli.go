@@ -50,6 +50,7 @@ const usage = `usage:
   gargi model calibrate [--server <url>] [--out <output.yaml>] [--graph <graph.yaml>] <sim.yaml>
   gargi sim run <experiment.yaml> --local [--workers N] [--json] [--out report.json] [--emit-best DIR] [--export-jsonl path] [--top K]
   gargi sim run <experiment.yaml> --server URL [--json] [--out report.json] [--top K]
+  gargi sim verify <experiment.yaml> [--scenarios N] [--json]
   gargi sim report <experiment-id> --server URL [--kind summary]
   gargi sim cancel <experiment-id> --server URL
   gargi policy explain <policy.yaml|policy.json>
@@ -100,6 +101,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		switch args[1] {
 		case "run":
 			return simRun(args[2:], stdout, stderr)
+		case "verify":
+			return simVerify(args[2:], stdout, stderr)
 		case "report":
 			return simReport(args[2:], stdout, stderr)
 		case "cancel":

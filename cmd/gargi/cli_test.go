@@ -696,3 +696,97 @@ func TestSimRun_ExportJSONL(t *testing.T) {
 		require.NotEmpty(t, rec.PolicyID)
 	}
 }
+
+func TestSimVerify_Usage(t *testing.T) {
+	code, _, errOut := gargi(t, "sim", "verify")
+	require.Equal(t, exitUsage, code)
+	require.Contains(t, errOut, "usage: gargi sim verify")
+
+	code, _, errOut = gargi(t, "sim", "verify", "a.yaml", "b.yaml")
+	require.Equal(t, exitUsage, code)
+	require.Contains(t, errOut, "usage: gargi sim verify")
+
+	code, _, errOut = gargi(t, "sim", "verify", "--scenarios", "0", "exp.yaml")
+	require.Equal(t, exitUsage, code)
+	require.Contains(t, errOut, "--scenarios must be greater than 0")
+}
+
+func TestSimVerify_LoanGoldenModel(t *testing.T) {
+	expPath := filepath.Join(loanDir, "experiment.yaml")
+
+	// Human-readable output
+	code, out, errOut := gargi(t, "sim", "verify", expPath, "--scenarios", "10")
+	require.Equal(t, 0, code, errOut)
+	require.Contains(t, out, "Matched: 10/10")
+	require.Contains(t, out, "100% fidelity")
+
+	// JSON output
+	code, out, errOut = gargi(t, "sim", "verify", expPath, "--scenarios", "10", "--json")
+	require.Equal(t, 0, code, errOut)
+	var report struct {
+		Scenarios  int `json:"scenarios"`
+		Matched    int `json:"matched"`
+		Mismatches []struct {
+			Scenario int    `json:"scenario"`
+			World    string `json:"world"`
+			Type     string `json:"type"`
+			Details  string `json:"details"`
+		} `json:"mismatches"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &report))
+	require.Equal(t, 10, report.Scenarios)
+	require.Equal(t, 10, report.Matched)
+	require.Empty(t, report.Mismatches)
+}
+
+func TestSimVerify_MismatchedRetryPolicy(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	graphYAML := `apiVersion: graph/v1
+id: test-retry-cli
+retryPolicies:
+  no_retry:
+    maxAttempts: 1
+nodes:
+  - id: worker
+    type: http_call
+    retryPolicy: no_retry
+    config:
+      url: "https://example.internal/work"
+      method: POST
+edges: []
+`
+	simYAML := `apiVersion: sim/v1
+id: test-retry-sim-cli
+graph: ./graph.yaml
+worlds:
+  w1: {}
+behaviors:
+  worker:
+    fail:
+      p: 1.0
+      class: retryable
+objective:
+  name: test
+  value: "-run.cost"
+  maximize: mean
+`
+	expYAML := `apiVersion: experiment/v1
+model: ./sim.yaml
+worlds: [w1]
+policies: {search: exhaustive}
+evaluator: monte_carlo
+runs: 10
+seed: 42
+`
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "graph.yaml"), []byte(graphYAML), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "sim.yaml"), []byte(simYAML), 0o600))
+	expPath := filepath.Join(tmpDir, "experiment.yaml")
+	require.NoError(t, os.WriteFile(expPath, []byte(expYAML), 0o600))
+
+	code, out, _ := gargi(t, "sim", "verify", expPath, "--scenarios", "5")
+	require.Equal(t, exitError, code)
+	require.Contains(t, out, "Mismatches")
+	require.Contains(t, out, "retry_policy")
+	require.Contains(t, out, "forbids retries")
+}
