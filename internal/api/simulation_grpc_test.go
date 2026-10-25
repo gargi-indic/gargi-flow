@@ -13,6 +13,8 @@ import (
 	"github.com/gargi-indic/gargi-flow/internal/sim/jobs"
 	"github.com/gargi-indic/gargi-flow/internal/store/memory"
 	gargiv1 "github.com/gargi-indic/gargi-flow/pkg/api/v1"
+	"github.com/gargi-indic/gargi-flow/pkg/engine"
+	"github.com/gargi-indic/gargi-flow/pkg/sim"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -20,11 +22,13 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// newSimGRPC serves GargiService and SimulationService on an in-memory
-// listener and returns a SimulationService client and the connection.
-func newSimGRPC(t *testing.T, opts jobs.Options) (gargiv1.SimulationServiceClient, *grpc.ClientConn) {
+// newSimGRPCWithStores serves GargiService and SimulationService on an in-memory
+// listener and returns a SimulationService client, connection, and underlying stores.
+func newSimGRPCWithStores(t *testing.T, opts jobs.Options) (gargiv1.SimulationServiceClient, *grpc.ClientConn, *memory.ExperimentStore, *memory.Store) {
 	t.Helper()
 	reg, err := jobs.NewRegistry()
 	require.NoError(t, err)
@@ -34,8 +38,9 @@ func newSimGRPC(t *testing.T, opts jobs.Options) (gargiv1.SimulationServiceClien
 	}
 	runner, err := jobs.New(st, reg, opts)
 	require.NoError(t, err)
-	srv := api.NewGRPCServer(nil, config.TemporalConfig{TaskQueue: "test-queue"}, memory.NewStore(), nil)
-	srv.RegisterSimulation(api.NewSimulationServer(st, runner, reg, nil))
+	memStore := memory.NewStore()
+	srv := api.NewGRPCServer(nil, config.TemporalConfig{TaskQueue: "test-queue"}, memStore, nil)
+	srv.RegisterSimulation(api.NewSimulationServer(st, runner, reg, nil, api.WithStateStore(memStore)))
 
 	lis := bufconn.Listen(1 << 20)
 	go func() { _ = srv.Serve(lis) }()
@@ -51,7 +56,14 @@ func newSimGRPC(t *testing.T, opts jobs.Options) (gargiv1.SimulationServiceClien
 		_ = runner.Close(ctx)
 		srv.GracefulStop()
 	})
-	return gargiv1.NewSimulationServiceClient(conn), conn
+	return gargiv1.NewSimulationServiceClient(conn), conn, st, memStore
+}
+
+// newSimGRPC serves GargiService and SimulationService on an in-memory
+// listener and returns a SimulationService client and the connection.
+func newSimGRPC(t *testing.T, opts jobs.Options) (gargiv1.SimulationServiceClient, *grpc.ClientConn) {
+	c, conn, _, _ := newSimGRPCWithStores(t, opts)
+	return c, conn
 }
 
 func loanModelRequest(t *testing.T) *gargiv1.SaveModelRequest {
@@ -264,4 +276,52 @@ func TestSimulationGRPC_StreamFollowsRunningExperiment(t *testing.T) {
 	require.Equal(t, "done", last.GetEventType())
 	require.Equal(t, gargiv1.ExperimentStatus_EXPERIMENT_STATUS_CANCELLED, last.GetStatus())
 	require.Equal(t, jobs.MsgCancelled, last.GetError())
+}
+
+func TestSimulationGRPC_IngestOutcome(t *testing.T) {
+	client, _, simStore, stateStore := newSimGRPCWithStores(t, jobs.Options{RunWorkers: 2})
+	ctx := context.Background()
+
+	// 1. Missing execution_id
+	_, err := client.IngestOutcome(ctx, &gargiv1.IngestOutcomeRequest{})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	// 2. Execution not found
+	_, err = client.IngestOutcome(ctx, &gargiv1.IngestOutcomeRequest{
+		ExecutionId: "non-existent-exec",
+	})
+	require.Equal(t, codes.NotFound, status.Code(err))
+
+	// 3. Create execution with graph in stateStore
+	g, err := engine.NewGraph("graph-grpc", nil, nil)
+	require.NoError(t, err)
+	st, err := engine.NewGraphState(engine.ExecutionID("exec-grpc-1"), g)
+	require.NoError(t, err)
+	require.NoError(t, stateStore.SetState(ctx, "exec-grpc-1", st, 0))
+
+	// 4. Ingest outcome
+	latents, err := structpb.NewStruct(map[string]any{
+		"default":  1.0,
+		"recovery": 0.45,
+	})
+	require.NoError(t, err)
+	obsTime := time.Date(2026, 10, 25, 16, 0, 0, 0, time.UTC)
+
+	resp, err := client.IngestOutcome(ctx, &gargiv1.IngestOutcomeRequest{
+		ExecutionId: "exec-grpc-1",
+		Latents:     latents,
+		ObservedAt:  timestamppb.New(obsTime),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	// 5. Verify outcome in experiment store
+	outcomes, err := simStore.ListOutcomes(ctx, sim.OutcomeQueryOptions{GraphID: "graph-grpc", PolicyVersion: "1"})
+	require.NoError(t, err)
+	require.Len(t, outcomes, 1)
+	require.Equal(t, "exec-grpc-1", outcomes[0].ExecutionID)
+	require.Equal(t, "graph-grpc", outcomes[0].GraphID)
+	require.Equal(t, "1", outcomes[0].PolicyVersion)
+	require.Equal(t, 1.0, outcomes[0].Latents["default"])
+	require.Equal(t, 0.45, outcomes[0].Latents["recovery"])
 }

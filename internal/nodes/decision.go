@@ -210,6 +210,17 @@ func (n *decisionNode) Execute(ctx context.Context, nc engine.NodeContext) (*eng
 	outputs := map[string]any{
 		"choice": choice,
 	}
+	if pr, ok := nc.(interface {
+		PolicyID() string
+		PolicyVersion() string
+	}); ok {
+		if pid := pr.PolicyID(); pid != "" {
+			outputs["policy_id"] = pid
+		}
+		if pver := pr.PolicyVersion(); pver != "" {
+			outputs["policy_version"] = pver
+		}
+	}
 	if shadow != nil {
 		outputs["shadow_choice"] = shadow.Choice
 		outputs["shadow_policy_id"] = shadow.PolicyID

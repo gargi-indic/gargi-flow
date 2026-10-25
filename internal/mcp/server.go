@@ -224,7 +224,7 @@ func (s *workspaceServer) register(server *mcp.Server) {
 	}, s.deployPolicy)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "ingest_outcome",
-		Description: "Ingests an outcome for a model.",
+		Description: "Ingests real-world outcomes for an execution.",
 	}, s.ingestOutcome)
 
 	server.AddResourceTemplate(&mcp.ResourceTemplate{

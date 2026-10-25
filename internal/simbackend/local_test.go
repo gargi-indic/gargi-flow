@@ -152,3 +152,27 @@ func TestLocal_RunBundle(t *testing.T) {
 	require.InDelta(t, 460.0, means["base"], 1e-9)
 	require.InDelta(t, 202.525, means["recession"], 1e-9)
 }
+
+func TestLocal_IngestOutcome(t *testing.T) {
+	ctx := context.Background()
+	b := NewLocal()
+
+	// Missing execution ID
+	err := b.IngestOutcome(ctx, OutcomeRequest{})
+	require.Error(t, err)
+
+	// Ingest valid outcome
+	err = b.IngestOutcome(ctx, OutcomeRequest{
+		ExecutionID: "exec-loc-1",
+		Latents:     map[string]any{"default": 1.0},
+	})
+	require.NoError(t, err)
+
+	// Verify it's in the underlying experiment store
+	require.NotNil(t, b.ExperimentStore())
+	outcomes, err := b.ExperimentStore().ListOutcomes(ctx, sim.OutcomeQueryOptions{})
+	require.NoError(t, err)
+	require.Len(t, outcomes, 1)
+	require.Equal(t, "exec-loc-1", outcomes[0].ExecutionID)
+	require.Equal(t, 1.0, outcomes[0].Latents["default"])
+}

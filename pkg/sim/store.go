@@ -140,6 +140,26 @@ type ListExperimentsOptions struct {
 	PageToken string
 }
 
+// OutcomeRecord stores the real-world outcome of a simulated or executed graph.
+type OutcomeRecord struct {
+	// ExecutionID is the engine execution ID.
+	ExecutionID string `json:"executionId"`
+	// GraphID is the model ID (graph).
+	GraphID string `json:"graphId"`
+	// PolicyVersion is the deployed policy version at the time of execution.
+	PolicyVersion string `json:"policyVersion"`
+	// Latents are the observed truths.
+	Latents map[string]any `json:"latents"`
+	// ObservedAt is when the outcome was recorded.
+	ObservedAt time.Time `json:"observedAt"`
+}
+
+// OutcomeQueryOptions specifies filters for listing outcomes.
+type OutcomeQueryOptions struct {
+	GraphID       string
+	PolicyVersion string
+}
+
 // ExperimentStore persists simulation model bundles and experiment records.
 //
 // Implementations are safe for concurrent use. Every value passed in or
@@ -176,4 +196,9 @@ type ExperimentStore interface {
 	// returns an error nothing is stored and that error is returned. The
 	// record's ID cannot be changed.
 	UpdateExperiment(ctx context.Context, id string, fn func(*ExperimentRecord) error) (ExperimentRecord, error)
+
+	// IngestOutcome stores a real-world outcome for recalibration.
+	IngestOutcome(ctx context.Context, rec OutcomeRecord) error
+	// ListOutcomes lists stored outcomes matching the options.
+	ListOutcomes(ctx context.Context, opts OutcomeQueryOptions) ([]OutcomeRecord, error)
 }

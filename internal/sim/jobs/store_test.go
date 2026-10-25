@@ -164,6 +164,14 @@ func (s *fakeStore) writes(id string) []sim.ExperimentRecord {
 	return slices.Clone(s.history[id])
 }
 
+func (s *fakeStore) IngestOutcome(_ context.Context, _ sim.OutcomeRecord) error {
+	return nil
+}
+
+func (s *fakeStore) ListOutcomes(_ context.Context, _ sim.OutcomeQueryOptions) ([]sim.OutcomeRecord, error) {
+	return nil, nil
+}
+
 // loanDir is the loan underwriting example.
 var loanDir = filepath.Join("..", "..", "..", "examples", "simulation", "loan")
 

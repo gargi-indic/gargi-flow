@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/gargi-indic/gargi-flow/internal/sim/experiment"
@@ -535,4 +536,20 @@ func (r *Remote) DeployPolicy(ctx context.Context, ref string, mode string) (*De
 		Version: resp.Version,
 		Mode:    resp.Mode,
 	}, nil
+}
+
+// IngestOutcome reports real-world outcomes for an execution over HTTP REST.
+func (r *Remote) IngestOutcome(ctx context.Context, req OutcomeRequest) error {
+	if req.ExecutionID == "" {
+		return errors.New("execution_id is required")
+	}
+	body := map[string]any{
+		"execution_id": req.ExecutionID,
+		"latents":      req.Latents,
+	}
+	if !req.ObservedAt.IsZero() {
+		body["observed_at"] = req.ObservedAt.Format(time.RFC3339Nano)
+	}
+	_, err := r.do(ctx, http.MethodPost, "/v1/outcomes", body)
+	return err
 }

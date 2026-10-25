@@ -104,8 +104,9 @@ type DeployPolicyInput struct {
 
 // IngestOutcomeInput specifies the arguments for ingest_outcome.
 type IngestOutcomeInput struct {
-	ModelID string `json:"model_id" jsonschema:"model id"`
-	Outcome string `json:"outcome" jsonschema:"outcome to ingest"`
+	ExecutionID string         `json:"execution_id" jsonschema:"the execution ID to ingest outcome for"`
+	Latents     map[string]any `json:"latents" jsonschema:"observed latent variable values"`
+	ObservedAt  string         `json:"observed_at,omitempty" jsonschema:"optional timestamp when outcome was observed (RFC3339)"`
 }
 
 func (s *workspaceServer) runExperiment(ctx context.Context, _ *mcp.CallToolRequest, in RunExperimentInput) (*mcp.CallToolResult, any, error) {
@@ -631,9 +632,44 @@ func (s *workspaceServer) deployPolicy(ctx context.Context, _ *mcp.CallToolReque
 	}, nil, nil
 }
 
-func (s *workspaceServer) ingestOutcome(_ context.Context, _ *mcp.CallToolRequest, _ IngestOutcomeInput) (*mcp.CallToolResult, any, error) {
+func (s *workspaceServer) ingestOutcome(ctx context.Context, _ *mcp.CallToolRequest, in IngestOutcomeInput) (*mcp.CallToolResult, any, error) {
+	if in.ExecutionID == "" {
+		return toolErrorf(engine.CodeInvalidValue, "execution_id is required"), nil, nil
+	}
+
+	var obsTime time.Time
+	if in.ObservedAt != "" {
+		t, err := time.Parse(time.RFC3339, in.ObservedAt)
+		if err != nil {
+			return toolErrorf(engine.CodeInvalidValue, "invalid observed_at: %v", err), nil, nil
+		}
+		obsTime = t
+	}
+
+	err := s.backend.IngestOutcome(ctx, simbackend.OutcomeRequest{
+		ExecutionID: in.ExecutionID,
+		Latents:     in.Latents,
+		ObservedAt:  obsTime,
+	})
+	if err != nil {
+		return toolError(simbackend.IssuesOf(err, engine.CodeInvalidValue), nil), nil, nil
+	}
+
+	respData := map[string]string{
+		"status":       "ok",
+		"execution_id": in.ExecutionID,
+		"message":      fmt.Sprintf("outcome for execution %q ingested successfully", in.ExecutionID),
+	}
+	b, err := json.Marshal(respData)
+	if err != nil {
+		return toolErrorf(engine.CodeInvalidValue, "failed to marshal response: %v", err), nil, nil
+	}
+
 	return &mcp.CallToolResult{
-		IsError: true,
-		Content: []mcp.Content{&mcp.TextContent{Text: `{"code": "unsupported", "message": "not available until P3 (Epic #159)"}`}},
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: string(b),
+			},
+		},
 	}, nil, nil
 }

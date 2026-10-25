@@ -30,6 +30,7 @@ type ExperimentStore struct {
 	experiments map[string]sim.ExperimentRecord
 	now         func() time.Time
 	*PolicyStore
+	outcomes []sim.OutcomeRecord
 }
 
 // NewExperimentStore returns an empty in-memory experiment store.
@@ -39,6 +40,7 @@ func NewExperimentStore() *ExperimentStore {
 		experiments: make(map[string]sim.ExperimentRecord),
 		now:         func() time.Time { return time.Now().UTC() },
 		PolicyStore: NewPolicyStore(),
+		outcomes:    make([]sim.OutcomeRecord, 0),
 	}
 }
 
@@ -255,4 +257,58 @@ func (s *ExperimentStore) UpdateExperiment(ctx context.Context, id string, fn fu
 	work.ID = id
 	s.experiments[id] = cloneRecord(work)
 	return work, nil
+}
+
+func cloneOutcome(o sim.OutcomeRecord) sim.OutcomeRecord {
+	out := o
+	if o.Latents != nil {
+		out.Latents = make(map[string]any, len(o.Latents))
+		for k, v := range o.Latents {
+			out.Latents[k] = v
+		}
+	}
+	return out
+}
+
+// IngestOutcome implements sim.ExperimentStore.
+func (s *ExperimentStore) IngestOutcome(ctx context.Context, rec sim.OutcomeRecord) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if rec.ExecutionID == "" {
+		return errors.New("memory: execution id is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cloned := cloneOutcome(rec)
+	for i, existing := range s.outcomes {
+		if existing.ExecutionID == rec.ExecutionID {
+			s.outcomes[i] = cloned
+			return nil
+		}
+	}
+	s.outcomes = append(s.outcomes, cloned)
+	return nil
+}
+
+// ListOutcomes implements sim.ExperimentStore.
+func (s *ExperimentStore) ListOutcomes(ctx context.Context, opts sim.OutcomeQueryOptions) ([]sim.OutcomeRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var out []sim.OutcomeRecord
+	for _, rec := range s.outcomes {
+		if opts.GraphID != "" && rec.GraphID != opts.GraphID {
+			continue
+		}
+		if opts.PolicyVersion != "" && rec.PolicyVersion != opts.PolicyVersion {
+			continue
+		}
+		out = append(out, cloneOutcome(rec))
+	}
+	return out, nil
 }

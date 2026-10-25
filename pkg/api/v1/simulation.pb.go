@@ -2103,6 +2103,104 @@ func (x *StreamExperimentProgressResponse) GetError() string {
 	return ""
 }
 
+// IngestOutcomeRequest reports real-world outcomes for an execution.
+type IngestOutcomeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExecutionId   string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	Latents       *structpb.Struct       `protobuf:"bytes,2,opt,name=latents,proto3" json:"latents,omitempty"`
+	ObservedAt    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IngestOutcomeRequest) Reset() {
+	*x = IngestOutcomeRequest{}
+	mi := &file_gargi_v1_simulation_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngestOutcomeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngestOutcomeRequest) ProtoMessage() {}
+
+func (x *IngestOutcomeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gargi_v1_simulation_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IngestOutcomeRequest.ProtoReflect.Descriptor instead.
+func (*IngestOutcomeRequest) Descriptor() ([]byte, []int) {
+	return file_gargi_v1_simulation_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *IngestOutcomeRequest) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+func (x *IngestOutcomeRequest) GetLatents() *structpb.Struct {
+	if x != nil {
+		return x.Latents
+	}
+	return nil
+}
+
+func (x *IngestOutcomeRequest) GetObservedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ObservedAt
+	}
+	return nil
+}
+
+// IngestOutcomeResponse is the response to IngestOutcome.
+type IngestOutcomeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IngestOutcomeResponse) Reset() {
+	*x = IngestOutcomeResponse{}
+	mi := &file_gargi_v1_simulation_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngestOutcomeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngestOutcomeResponse) ProtoMessage() {}
+
+func (x *IngestOutcomeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gargi_v1_simulation_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IngestOutcomeResponse.ProtoReflect.Descriptor instead.
+func (*IngestOutcomeResponse) Descriptor() ([]byte, []int) {
+	return file_gargi_v1_simulation_proto_rawDescGZIP(), []int{32}
+}
+
 var File_gargi_v1_simulation_proto protoreflect.FileDescriptor
 
 const file_gargi_v1_simulation_proto_rawDesc = "" +
@@ -2273,14 +2371,21 @@ const file_gargi_v1_simulation_proto_rawDesc = "" +
 	"event_type\x18\x04 \x01(\tR\teventType\x122\n" +
 	"\x06status\x18\x05 \x01(\x0e2\x1a.gargi.v1.ExperimentStatusR\x06status\x128\n" +
 	"\bprogress\x18\x06 \x01(\v2\x1c.gargi.v1.ExperimentProgressR\bprogress\x12\x14\n" +
-	"\x05error\x18\a \x01(\tR\x05error*\xd2\x01\n" +
+	"\x05error\x18\a \x01(\tR\x05error\"\xa9\x01\n" +
+	"\x14IngestOutcomeRequest\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\x121\n" +
+	"\alatents\x18\x02 \x01(\v2\x17.google.protobuf.StructR\alatents\x12;\n" +
+	"\vobserved_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"observedAt\"\x17\n" +
+	"\x15IngestOutcomeResponse*\xd2\x01\n" +
 	"\x10ExperimentStatus\x12!\n" +
 	"\x1dEXPERIMENT_STATUS_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18EXPERIMENT_STATUS_QUEUED\x10\x01\x12\x1d\n" +
 	"\x19EXPERIMENT_STATUS_RUNNING\x10\x02\x12\x1f\n" +
 	"\x1bEXPERIMENT_STATUS_SUCCEEDED\x10\x03\x12\x1c\n" +
 	"\x18EXPERIMENT_STATUS_FAILED\x10\x04\x12\x1f\n" +
-	"\x1bEXPERIMENT_STATUS_CANCELLED\x10\x052\xf8\t\n" +
+	"\x1bEXPERIMENT_STATUS_CANCELLED\x10\x052\xe3\n" +
+	"\n" +
 	"\x11SimulationService\x12p\n" +
 	"\rValidateModel\x12\x1e.gargi.v1.ValidateModelRequest\x1a\x1f.gargi.v1.ValidateModelResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/models:validate\x12[\n" +
 	"\tSaveModel\x12\x1a.gargi.v1.SaveModelRequest\x1a\x1b.gargi.v1.SaveModelResponse\"\x15\x82\xd3\xe4\x93\x02\x0f:\x01*\"\n" +
@@ -2295,7 +2400,8 @@ const file_gargi_v1_simulation_proto_rawDesc = "" +
 	"\fDeployPolicy\x12\x1d.gargi.v1.DeployPolicyRequest\x1a\x1e.gargi.v1.DeployPolicyResponse\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/policies/{id}:deploy\x12y\n" +
 	"\tGetReport\x12\x1a.gargi.v1.GetReportRequest\x1a\x1b.gargi.v1.GetReportResponse\"3\x82\xd3\xe4\x93\x02-b\x06report\x12#/v1/experiments/{id}/reports/{kind}\x12f\n" +
 	"\x06GetRun\x12\x17.gargi.v1.GetRunRequest\x1a\x18.gargi.v1.GetRunResponse\")\x82\xd3\xe4\x93\x02#\x12!/v1/experiments/{id}/runs/{index}\x12\x98\x01\n" +
-	"\x18StreamExperimentProgress\x12).gargi.v1.StreamExperimentProgressRequest\x1a*.gargi.v1.StreamExperimentProgressResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/experiments/{id}/stream0\x01B6Z4github.com/gargi-indic/gargi-flow/pkg/api/v1;gargiv1b\x06proto3"
+	"\x18StreamExperimentProgress\x12).gargi.v1.StreamExperimentProgressRequest\x1a*.gargi.v1.StreamExperimentProgressResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/experiments/{id}/stream0\x01\x12i\n" +
+	"\rIngestOutcome\x12\x1e.gargi.v1.IngestOutcomeRequest\x1a\x1f.gargi.v1.IngestOutcomeResponse\"\x17\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/outcomesB6Z4github.com/gargi-indic/gargi-flow/pkg/api/v1;gargiv1b\x06proto3"
 
 var (
 	file_gargi_v1_simulation_proto_rawDescOnce sync.Once
@@ -2310,7 +2416,7 @@ func file_gargi_v1_simulation_proto_rawDescGZIP() []byte {
 }
 
 var file_gargi_v1_simulation_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_gargi_v1_simulation_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_gargi_v1_simulation_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_gargi_v1_simulation_proto_goTypes = []any{
 	(ExperimentStatus)(0),                    // 0: gargi.v1.ExperimentStatus
 	(*ValidationIssue)(nil),                  // 1: gargi.v1.ValidationIssue
@@ -2344,76 +2450,83 @@ var file_gargi_v1_simulation_proto_goTypes = []any{
 	(*GetRunResponse)(nil),                   // 29: gargi.v1.GetRunResponse
 	(*StreamExperimentProgressRequest)(nil),  // 30: gargi.v1.StreamExperimentProgressRequest
 	(*StreamExperimentProgressResponse)(nil), // 31: gargi.v1.StreamExperimentProgressResponse
-	nil,                                      // 32: gargi.v1.ValidateModelRequest.PoliciesEntry
-	nil,                                      // 33: gargi.v1.SaveModelRequest.PoliciesEntry
-	nil,                                      // 34: gargi.v1.Model.PoliciesEntry
-	nil,                                      // 35: gargi.v1.RunRecord.DecisionsEntry
-	nil,                                      // 36: gargi.v1.RunRecord.ConstraintsEntry
-	nil,                                      // 37: gargi.v1.RunRecord.MetricsEntry
-	(*timestamppb.Timestamp)(nil),            // 38: google.protobuf.Timestamp
-	(*structpb.Value)(nil),                   // 39: google.protobuf.Value
-	(*durationpb.Duration)(nil),              // 40: google.protobuf.Duration
-	(*StreamExecutionUpdatesResponse)(nil),   // 41: gargi.v1.StreamExecutionUpdatesResponse
+	(*IngestOutcomeRequest)(nil),             // 32: gargi.v1.IngestOutcomeRequest
+	(*IngestOutcomeResponse)(nil),            // 33: gargi.v1.IngestOutcomeResponse
+	nil,                                      // 34: gargi.v1.ValidateModelRequest.PoliciesEntry
+	nil,                                      // 35: gargi.v1.SaveModelRequest.PoliciesEntry
+	nil,                                      // 36: gargi.v1.Model.PoliciesEntry
+	nil,                                      // 37: gargi.v1.RunRecord.DecisionsEntry
+	nil,                                      // 38: gargi.v1.RunRecord.ConstraintsEntry
+	nil,                                      // 39: gargi.v1.RunRecord.MetricsEntry
+	(*timestamppb.Timestamp)(nil),            // 40: google.protobuf.Timestamp
+	(*structpb.Value)(nil),                   // 41: google.protobuf.Value
+	(*durationpb.Duration)(nil),              // 42: google.protobuf.Duration
+	(*StreamExecutionUpdatesResponse)(nil),   // 43: gargi.v1.StreamExecutionUpdatesResponse
+	(*structpb.Struct)(nil),                  // 44: google.protobuf.Struct
 }
 var file_gargi_v1_simulation_proto_depIdxs = []int32{
 	1,  // 0: gargi.v1.ValidationIssues.errors:type_name -> gargi.v1.ValidationIssue
-	32, // 1: gargi.v1.ValidateModelRequest.policies:type_name -> gargi.v1.ValidateModelRequest.PoliciesEntry
+	34, // 1: gargi.v1.ValidateModelRequest.policies:type_name -> gargi.v1.ValidateModelRequest.PoliciesEntry
 	1,  // 2: gargi.v1.ValidateModelResponse.errors:type_name -> gargi.v1.ValidationIssue
-	33, // 3: gargi.v1.SaveModelRequest.policies:type_name -> gargi.v1.SaveModelRequest.PoliciesEntry
-	34, // 4: gargi.v1.Model.policies:type_name -> gargi.v1.Model.PoliciesEntry
-	38, // 5: gargi.v1.Model.created_at:type_name -> google.protobuf.Timestamp
+	35, // 3: gargi.v1.SaveModelRequest.policies:type_name -> gargi.v1.SaveModelRequest.PoliciesEntry
+	36, // 4: gargi.v1.Model.policies:type_name -> gargi.v1.Model.PoliciesEntry
+	40, // 5: gargi.v1.Model.created_at:type_name -> google.protobuf.Timestamp
 	6,  // 6: gargi.v1.SaveModelResponse.model:type_name -> gargi.v1.Model
 	6,  // 7: gargi.v1.GetModelResponse.model:type_name -> gargi.v1.Model
-	38, // 8: gargi.v1.ModelSummary.created_at:type_name -> google.protobuf.Timestamp
+	40, // 8: gargi.v1.ModelSummary.created_at:type_name -> google.protobuf.Timestamp
 	11, // 9: gargi.v1.ListModelsResponse.models:type_name -> gargi.v1.ModelSummary
 	13, // 10: gargi.v1.CreateExperimentRequest.model:type_name -> gargi.v1.ModelRef
 	0,  // 11: gargi.v1.CreateExperimentResponse.status:type_name -> gargi.v1.ExperimentStatus
 	13, // 12: gargi.v1.Experiment.model:type_name -> gargi.v1.ModelRef
 	0,  // 13: gargi.v1.Experiment.status:type_name -> gargi.v1.ExperimentStatus
 	16, // 14: gargi.v1.Experiment.progress:type_name -> gargi.v1.ExperimentProgress
-	38, // 15: gargi.v1.Experiment.created_at:type_name -> google.protobuf.Timestamp
-	38, // 16: gargi.v1.Experiment.started_at:type_name -> google.protobuf.Timestamp
-	38, // 17: gargi.v1.Experiment.finished_at:type_name -> google.protobuf.Timestamp
+	40, // 15: gargi.v1.Experiment.created_at:type_name -> google.protobuf.Timestamp
+	40, // 16: gargi.v1.Experiment.started_at:type_name -> google.protobuf.Timestamp
+	40, // 17: gargi.v1.Experiment.finished_at:type_name -> google.protobuf.Timestamp
 	17, // 18: gargi.v1.Experiment.best:type_name -> gargi.v1.WorldBest
 	18, // 19: gargi.v1.GetExperimentResponse.experiment:type_name -> gargi.v1.Experiment
 	0,  // 20: gargi.v1.CancelExperimentResponse.status:type_name -> gargi.v1.ExperimentStatus
-	39, // 21: gargi.v1.GetReportResponse.report:type_name -> google.protobuf.Value
-	40, // 22: gargi.v1.RunRecord.duration:type_name -> google.protobuf.Duration
-	35, // 23: gargi.v1.RunRecord.decisions:type_name -> gargi.v1.RunRecord.DecisionsEntry
-	36, // 24: gargi.v1.RunRecord.constraints:type_name -> gargi.v1.RunRecord.ConstraintsEntry
-	37, // 25: gargi.v1.RunRecord.metrics:type_name -> gargi.v1.RunRecord.MetricsEntry
-	41, // 26: gargi.v1.GetRunResponse.events:type_name -> gargi.v1.StreamExecutionUpdatesResponse
+	41, // 21: gargi.v1.GetReportResponse.report:type_name -> google.protobuf.Value
+	42, // 22: gargi.v1.RunRecord.duration:type_name -> google.protobuf.Duration
+	37, // 23: gargi.v1.RunRecord.decisions:type_name -> gargi.v1.RunRecord.DecisionsEntry
+	38, // 24: gargi.v1.RunRecord.constraints:type_name -> gargi.v1.RunRecord.ConstraintsEntry
+	39, // 25: gargi.v1.RunRecord.metrics:type_name -> gargi.v1.RunRecord.MetricsEntry
+	43, // 26: gargi.v1.GetRunResponse.events:type_name -> gargi.v1.StreamExecutionUpdatesResponse
 	28, // 27: gargi.v1.GetRunResponse.record:type_name -> gargi.v1.RunRecord
-	38, // 28: gargi.v1.StreamExperimentProgressResponse.timestamp:type_name -> google.protobuf.Timestamp
+	40, // 28: gargi.v1.StreamExperimentProgressResponse.timestamp:type_name -> google.protobuf.Timestamp
 	0,  // 29: gargi.v1.StreamExperimentProgressResponse.status:type_name -> gargi.v1.ExperimentStatus
 	16, // 30: gargi.v1.StreamExperimentProgressResponse.progress:type_name -> gargi.v1.ExperimentProgress
-	3,  // 31: gargi.v1.SimulationService.ValidateModel:input_type -> gargi.v1.ValidateModelRequest
-	5,  // 32: gargi.v1.SimulationService.SaveModel:input_type -> gargi.v1.SaveModelRequest
-	8,  // 33: gargi.v1.SimulationService.GetModel:input_type -> gargi.v1.GetModelRequest
-	10, // 34: gargi.v1.SimulationService.ListModels:input_type -> gargi.v1.ListModelsRequest
-	14, // 35: gargi.v1.SimulationService.CreateExperiment:input_type -> gargi.v1.CreateExperimentRequest
-	19, // 36: gargi.v1.SimulationService.GetExperiment:input_type -> gargi.v1.GetExperimentRequest
-	21, // 37: gargi.v1.SimulationService.CancelExperiment:input_type -> gargi.v1.CancelExperimentRequest
-	23, // 38: gargi.v1.SimulationService.DeployPolicy:input_type -> gargi.v1.DeployPolicyRequest
-	25, // 39: gargi.v1.SimulationService.GetReport:input_type -> gargi.v1.GetReportRequest
-	27, // 40: gargi.v1.SimulationService.GetRun:input_type -> gargi.v1.GetRunRequest
-	30, // 41: gargi.v1.SimulationService.StreamExperimentProgress:input_type -> gargi.v1.StreamExperimentProgressRequest
-	4,  // 42: gargi.v1.SimulationService.ValidateModel:output_type -> gargi.v1.ValidateModelResponse
-	7,  // 43: gargi.v1.SimulationService.SaveModel:output_type -> gargi.v1.SaveModelResponse
-	9,  // 44: gargi.v1.SimulationService.GetModel:output_type -> gargi.v1.GetModelResponse
-	12, // 45: gargi.v1.SimulationService.ListModels:output_type -> gargi.v1.ListModelsResponse
-	15, // 46: gargi.v1.SimulationService.CreateExperiment:output_type -> gargi.v1.CreateExperimentResponse
-	20, // 47: gargi.v1.SimulationService.GetExperiment:output_type -> gargi.v1.GetExperimentResponse
-	22, // 48: gargi.v1.SimulationService.CancelExperiment:output_type -> gargi.v1.CancelExperimentResponse
-	24, // 49: gargi.v1.SimulationService.DeployPolicy:output_type -> gargi.v1.DeployPolicyResponse
-	26, // 50: gargi.v1.SimulationService.GetReport:output_type -> gargi.v1.GetReportResponse
-	29, // 51: gargi.v1.SimulationService.GetRun:output_type -> gargi.v1.GetRunResponse
-	31, // 52: gargi.v1.SimulationService.StreamExperimentProgress:output_type -> gargi.v1.StreamExperimentProgressResponse
-	42, // [42:53] is the sub-list for method output_type
-	31, // [31:42] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	44, // 31: gargi.v1.IngestOutcomeRequest.latents:type_name -> google.protobuf.Struct
+	40, // 32: gargi.v1.IngestOutcomeRequest.observed_at:type_name -> google.protobuf.Timestamp
+	3,  // 33: gargi.v1.SimulationService.ValidateModel:input_type -> gargi.v1.ValidateModelRequest
+	5,  // 34: gargi.v1.SimulationService.SaveModel:input_type -> gargi.v1.SaveModelRequest
+	8,  // 35: gargi.v1.SimulationService.GetModel:input_type -> gargi.v1.GetModelRequest
+	10, // 36: gargi.v1.SimulationService.ListModels:input_type -> gargi.v1.ListModelsRequest
+	14, // 37: gargi.v1.SimulationService.CreateExperiment:input_type -> gargi.v1.CreateExperimentRequest
+	19, // 38: gargi.v1.SimulationService.GetExperiment:input_type -> gargi.v1.GetExperimentRequest
+	21, // 39: gargi.v1.SimulationService.CancelExperiment:input_type -> gargi.v1.CancelExperimentRequest
+	23, // 40: gargi.v1.SimulationService.DeployPolicy:input_type -> gargi.v1.DeployPolicyRequest
+	25, // 41: gargi.v1.SimulationService.GetReport:input_type -> gargi.v1.GetReportRequest
+	27, // 42: gargi.v1.SimulationService.GetRun:input_type -> gargi.v1.GetRunRequest
+	30, // 43: gargi.v1.SimulationService.StreamExperimentProgress:input_type -> gargi.v1.StreamExperimentProgressRequest
+	32, // 44: gargi.v1.SimulationService.IngestOutcome:input_type -> gargi.v1.IngestOutcomeRequest
+	4,  // 45: gargi.v1.SimulationService.ValidateModel:output_type -> gargi.v1.ValidateModelResponse
+	7,  // 46: gargi.v1.SimulationService.SaveModel:output_type -> gargi.v1.SaveModelResponse
+	9,  // 47: gargi.v1.SimulationService.GetModel:output_type -> gargi.v1.GetModelResponse
+	12, // 48: gargi.v1.SimulationService.ListModels:output_type -> gargi.v1.ListModelsResponse
+	15, // 49: gargi.v1.SimulationService.CreateExperiment:output_type -> gargi.v1.CreateExperimentResponse
+	20, // 50: gargi.v1.SimulationService.GetExperiment:output_type -> gargi.v1.GetExperimentResponse
+	22, // 51: gargi.v1.SimulationService.CancelExperiment:output_type -> gargi.v1.CancelExperimentResponse
+	24, // 52: gargi.v1.SimulationService.DeployPolicy:output_type -> gargi.v1.DeployPolicyResponse
+	26, // 53: gargi.v1.SimulationService.GetReport:output_type -> gargi.v1.GetReportResponse
+	29, // 54: gargi.v1.SimulationService.GetRun:output_type -> gargi.v1.GetRunResponse
+	31, // 55: gargi.v1.SimulationService.StreamExperimentProgress:output_type -> gargi.v1.StreamExperimentProgressResponse
+	33, // 56: gargi.v1.SimulationService.IngestOutcome:output_type -> gargi.v1.IngestOutcomeResponse
+	45, // [45:57] is the sub-list for method output_type
+	33, // [33:45] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_gargi_v1_simulation_proto_init() }
@@ -2428,7 +2541,7 @@ func file_gargi_v1_simulation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gargi_v1_simulation_proto_rawDesc), len(file_gargi_v1_simulation_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   37,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

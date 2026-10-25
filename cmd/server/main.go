@@ -117,7 +117,7 @@ func run(ctx context.Context, args []string, getenv func(string) (string, bool),
 		return fmt.Errorf("recovering interrupted simulation experiments: %w", err)
 	}
 	logger.Info("Recovered interrupted simulation experiments", "count", recovered, "experiments_driver", cfg.Store.EffectiveExperimentsDriver())
-	simService := api.NewSimulationServer(simStore, simRunner, simRegistry, logger)
+	simService := api.NewSimulationServer(simStore, simRunner, simRegistry, logger, api.WithStateStore(st))
 
 	grpcServer := api.NewGRPCServer(temporalClient, cfg.Temporal, st, logger)
 	grpcServer.RegisterSimulation(simService)
