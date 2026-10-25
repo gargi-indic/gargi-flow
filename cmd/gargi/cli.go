@@ -18,7 +18,10 @@ import (
 	"time"
 
 	"github.com/gargi-indic/gargi-flow/internal/mcp"
+	"github.com/gargi-indic/gargi-flow/internal/sim/calibrate"
 	"github.com/gargi-indic/gargi-flow/internal/sim/experiment"
+	"github.com/gargi-indic/gargi-flow/internal/sim/jobs"
+	"github.com/gargi-indic/gargi-flow/internal/sim/model"
 	"github.com/gargi-indic/gargi-flow/internal/sim/report"
 	"github.com/gargi-indic/gargi-flow/internal/simbackend"
 	"github.com/gargi-indic/gargi-flow/pkg/engine"
@@ -43,6 +46,7 @@ const errServerMode = "pass --local or --server URL"
 const usage = `usage:
   gargi model init --template canary|loan [dir]
   gargi model validate [--json] <sim.yaml>
+  gargi model calibrate [--server <url>] [--out <output.yaml>] [--graph <graph.yaml>] <sim.yaml>
   gargi sim run <experiment.yaml> --local [--workers N] [--json] [--out report.json] [--emit-best DIR] [--export-jsonl path] [--top K]
   gargi sim run <experiment.yaml> --server URL [--json] [--out report.json] [--top K]
   gargi sim report <experiment-id> --server URL [--kind summary]
@@ -79,6 +83,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return modelValidate(args[2:], stdout, stderr)
 		case "init":
 			return modelInit(args[2:], stdout, stderr)
+		case "calibrate":
+			return modelCalibrate(args[2:], stdout, stderr)
 		default:
 			printf(stderr, "%s", usage)
 			return exitUsage
@@ -317,6 +323,131 @@ func modelValidate(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 	return exitOK
+}
+
+func modelCalibrate(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("gargi model calibrate", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	server := fs.String("server", "", "URL of gargi server to fetch executions and outcomes")
+	out := fs.String("out", "", "Output file path for calibrated sim.yaml")
+	graph := fs.String("graph", "", "Path to graph definition YAML (overrides sim.yaml graph)")
+	executionsPath := fs.String("executions", "", "Optional path to executions file (offline mode)")
+	outcomesPath := fs.String("outcomes", "", "Optional path to outcomes file (offline mode)")
+	files, err := parseInterspersed(fs, args)
+	if err != nil {
+		return parseExit(err)
+	}
+	if len(files) != 1 {
+		printf(stderr, "%s\n", "usage: gargi model calibrate [--server <url>] [--out <output.yaml>] [--graph <graph.yaml>] <sim.yaml>")
+		return exitUsage
+	}
+
+	simPath := files[0]
+	simData, err := os.ReadFile(simPath)
+	if err != nil {
+		printf(stderr, "gargi: %v\n", err)
+		return exitError
+	}
+	format, err := formatFor(simPath)
+	if err != nil {
+		printf(stderr, "gargi: %v\n", err)
+		return exitError
+	}
+	simDef, err := model.ParseSimModel(simData, format)
+	if err != nil {
+		printf(stderr, "gargi: %v\n", err)
+		return exitError
+	}
+
+	if *graph != "" {
+		if !filepath.IsAbs(*graph) {
+			if abs, err := filepath.Abs(*graph); err == nil {
+				simDef.Graph = abs
+			} else {
+				simDef.Graph = *graph
+			}
+		} else {
+			simDef.Graph = *graph
+		}
+	}
+
+	reg, err := jobs.NewRegistry()
+	if err != nil {
+		printf(stderr, "gargi: %v\n", err)
+		return exitError
+	}
+	compMod, compileErrs := model.Compile(simDef, filepath.Dir(simPath), reg)
+	if compileErrs != nil && compileErrs.Len() > 0 {
+		printIssues(stderr, compileErrs.Issues())
+		return exitError
+	}
+
+	var reader calibrate.ExecutionReader
+	var outcomes []sim.OutcomeRecord
+
+	if *server != "" {
+		remReader, err := calibrate.NewRemoteReader(*server, nil)
+		if err != nil {
+			printf(stderr, "gargi: %v\n", err)
+			return exitError
+		}
+		reader = remReader
+	} else if *executionsPath != "" {
+		memReader, err := calibrate.LoadExecutionsFile(*executionsPath)
+		if err != nil {
+			printf(stderr, "gargi: %v\n", err)
+			return exitError
+		}
+		reader = memReader
+	} else {
+		reader = calibrate.NewEmptyReader()
+	}
+
+	if *outcomesPath != "" {
+		loadedOutcomes, err := calibrate.LoadOutcomesFile(*outcomesPath)
+		if err != nil {
+			printf(stderr, "gargi: %v\n", err)
+			return exitError
+		}
+		outcomes = loadedOutcomes
+	}
+
+	res, err := calibrate.Calibrate(context.Background(), compMod, reader, outcomes)
+	if err != nil {
+		printf(stderr, "gargi: %v\n", err)
+		return exitError
+	}
+
+	yamlBytes, err := res.OverlayYAML(simDef)
+	if err != nil {
+		printf(stderr, "gargi: %v\n", err)
+		return exitError
+	}
+
+	if *out != "" {
+		if err := os.WriteFile(*out, yamlBytes, 0o600); err != nil {
+			printf(stderr, "gargi: %v\n", err)
+			return exitError
+		}
+	} else {
+		if _, err := stdout.Write(yamlBytes); err != nil {
+			printf(stderr, "gargi: %v\n", err)
+			return exitError
+		}
+	}
+
+	return exitOK
+}
+
+func formatFor(path string) (engine.Format, error) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".yaml", ".yml":
+		return engine.FormatYAML, nil
+	case ".json":
+		return engine.FormatJSON, nil
+	default:
+		return "", fmt.Errorf("unsupported file extension %q (want .yaml, .yml or .json)", filepath.Ext(path))
+	}
 }
 
 func simRun(args []string, stdout, stderr io.Writer) int {

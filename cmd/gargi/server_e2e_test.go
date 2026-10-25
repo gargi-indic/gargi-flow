@@ -153,3 +153,13 @@ func TestServerE2E_DeployPolicy(t *testing.T) {
 	require.Equal(t, 1, code)
 	require.Contains(t, errOut, "gargi policy deploy: ")
 }
+
+func TestServerE2E_ModelCalibrate(t *testing.T) {
+	url := startServer(t)
+
+	code, out, errOut := gargi(t, "model", "calibrate", "--server", url, filepath.Join(loanDir, "sim.yaml"))
+	require.Equal(t, 0, code, errOut)
+	require.Contains(t, out, "# Calibrated sim/v1 model overlay")
+	require.Contains(t, out, "apiVersion: sim/v1")
+	require.Contains(t, out, "loan-underwriting")
+}
