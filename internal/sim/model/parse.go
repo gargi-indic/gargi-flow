@@ -313,7 +313,7 @@ func validatePolicySearch(p Policies, errs *engine.ValidationErrors) {
 	switch search {
 	case "", "exhaustive", "exact", "grid", "random", "racing":
 	default:
-		errs.Add("$.policies.search", engine.CodeInvalidValue, "search must be exhaustive, exact, grid, random or racing")
+		errs.Add("$.policies.search", engine.CodeInvalidValue, "search must be exhaustive, exact, grid, random, racing or bayesian")
 	}
 
 	if search != "racing" {
@@ -333,7 +333,22 @@ func validatePolicySearch(p Policies, errs *engine.ValidationErrors) {
 			errs.Add("$.policies.alpha", engine.CodeInvalidValue, "alpha is only allowed with search: racing")
 		}
 
-		parameterized := search == "grid" || search == "random"
+		if search != "bayesian" {
+			if p.Trials != 0 {
+				errs.Add("$.policies.trials", engine.CodeInvalidValue, "trials is only allowed with search: bayesian")
+			}
+			if p.StartupTrials != 0 {
+				errs.Add("$.policies.startup_trials", engine.CodeInvalidValue, "startup_trials is only allowed with search: bayesian")
+			}
+			if p.Gamma != 0 {
+				errs.Add("$.policies.gamma", engine.CodeInvalidValue, "gamma is only allowed with search: bayesian")
+			}
+			if p.Racing {
+				errs.Add("$.policies.racing", engine.CodeInvalidValue, "racing is only allowed with search: bayesian")
+			}
+		}
+
+		parameterized := search == "grid" || search == "random" || search == "bayesian"
 		switch {
 		case parameterized && p.Policy == "":
 			errs.Add("$.policies.policy", engine.CodeMissingRequired, fmt.Sprintf("search: %s requires policy", search))

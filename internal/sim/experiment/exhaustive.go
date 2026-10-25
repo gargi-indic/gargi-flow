@@ -107,10 +107,39 @@ func (e *CompiledExperiment) CandidateSource() PolicySource {
 	return ExhaustiveSource{Worlds: e.Worlds, MaxPolicies: e.Def.MaxPolicies}
 }
 
+// BayesianSource returns the experiment's BayesianSource wrapping its policy template.
+func (e *CompiledExperiment) BayesianSource() BayesianSource {
+	p := e.Def.Policies
+	trials := p.Trials
+	if trials <= 0 {
+		trials = 20
+	}
+	startupTrials := p.StartupTrials
+	if startupTrials <= 0 {
+		startupTrials = 5
+	}
+	gamma := p.Gamma
+	if gamma <= 0 {
+		gamma = 0.20
+	}
+	seed := e.Def.Seed
+	if p.Seed != nil {
+		seed = *p.Seed
+	}
+	return BayesianSource{
+		Policy:        e.Policy,
+		Trials:        trials,
+		StartupTrials: startupTrials,
+		Gamma:         gamma,
+		Racing:        p.Racing,
+		Seed:          seed,
+	}
+}
+
 // PolicySource returns the experiment's policy source: an ExhaustiveSource
 // for policies.search: exhaustive, an ExactSource for policies.search:
 // exact, a GridSource for grid, a RandomSource for random, a RacingSource
-// for racing, otherwise a FilesSource.
+// for racing, a BayesianSource for bayesian, otherwise a FilesSource.
 func (e *CompiledExperiment) PolicySource() PolicySource {
 	switch e.Def.Policies.Search {
 	case "exhaustive":
@@ -123,6 +152,8 @@ func (e *CompiledExperiment) PolicySource() PolicySource {
 		return e.RandomSource()
 	case "racing":
 		return e.RacingSource()
+	case "bayesian":
+		return e.BayesianSource()
 	default:
 		return e.FilesSource()
 	}

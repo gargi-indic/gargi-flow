@@ -236,6 +236,12 @@ type Policies struct {
 	Factor     float64   `json:"factor,omitempty"`
 	Alpha      float64   `json:"alpha,omitempty"`
 	Candidates *Policies `json:"candidates,omitempty"`
+
+	// Bayesian optimizer configuration (only allowed with search: bayesian):
+	Trials        int     `json:"trials,omitempty"`
+	StartupTrials int     `json:"startup_trials,omitempty"`
+	Gamma         float64 `json:"gamma,omitempty"`
+	Racing        bool    `json:"racing,omitempty"`
 }
 
 // ArrivalsSpec specifies the arrival process for Mode B simulation.
