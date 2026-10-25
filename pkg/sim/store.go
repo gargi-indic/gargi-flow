@@ -72,6 +72,15 @@ func (s ExperimentStatus) Terminal() bool {
 	}
 }
 
+// ExperimentCheckpoint captures the intermediate state of an experiment
+// to allow resuming it after an interruption.
+type ExperimentCheckpoint struct {
+	CompletedChunks int    `json:"completedChunks"`
+	TotalChunks     int    `json:"totalChunks"`
+	EvaluatedRuns   int    `json:"evaluatedRuns"`
+	PartialResults  []byte `json:"partialResults,omitempty"`
+}
+
 // Progress is a snapshot of a running experiment.
 type Progress struct {
 	// Done is the number of completed units of work (see
@@ -106,6 +115,8 @@ type ExperimentRecord struct {
 	Error string `json:"error,omitempty"`
 	// Progress is the latest progress snapshot.
 	Progress Progress `json:"progress"`
+	// Checkpoint is the latest execution checkpoint, if any.
+	Checkpoint *ExperimentCheckpoint `json:"checkpoint,omitempty"`
 	// Report is the experiment.Report as JSON, set when the experiment
 	// succeeds.
 	Report []byte `json:"report,omitempty"`

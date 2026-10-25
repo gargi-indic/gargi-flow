@@ -223,6 +223,51 @@ func (r *Runner) Submit(ctx context.Context, rec sim.ExperimentRecord) (sim.Expe
 	return rec, nil
 }
 
+// Resume restarts a failed or interrupted experiment from its last checkpoint.
+func (r *Runner) Resume(ctx context.Context, id string) error {
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return ErrClosed
+	}
+	if len(r.pending)+r.reserved >= r.opts.QueueSize {
+		r.mu.Unlock()
+		return ErrQueueFull
+	}
+
+	if err := ctx.Err(); err != nil {
+		r.mu.Unlock()
+		return err
+	}
+	r.reserved++
+	r.mu.Unlock()
+
+	_, err := r.store.UpdateExperiment(ctx, id, func(rec *sim.ExperimentRecord) error {
+		if rec.Status == sim.ExperimentQueued || rec.Status == sim.ExperimentRunning {
+			return errors.New("jobs: experiment is already running")
+		}
+		if rec.Status == sim.ExperimentSucceeded {
+			return errors.New("jobs: experiment already succeeded")
+		}
+		rec.Status = sim.ExperimentQueued
+		rec.Error = ""
+		rec.FinishedAt = time.Time{}
+		return nil
+	})
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.reserved--
+	if err != nil {
+		r.ready.Broadcast()
+		return err
+	}
+	r.jobs[id] = &job{subs: make(map[int]chan sim.Progress)}
+	r.pending = append(r.pending, id)
+	r.ready.Signal()
+	return nil
+}
+
 // Cancel cancels a queued or running experiment; its status ends
 // cancelled. A queued experiment is marked cancelled before Cancel returns;
 // a running one stops promptly and its worker records the cancellation.
@@ -427,7 +472,7 @@ func (r *Runner) run(id string) {
 		return
 	}
 
-	report, last, runErr := r.execute(ctx, storeCtx, rec)
+	report, last, lastCP, runErr := r.execute(ctx, storeCtx, rec)
 	var data []byte
 	if runErr == nil {
 		if data, err = json.Marshal(report); err != nil {
@@ -439,6 +484,9 @@ func (r *Runner) run(id string) {
 	r.mu.Unlock()
 	r.finish(storeCtx, id, func(rec *sim.ExperimentRecord) {
 		rec.Progress = last
+		if lastCP != nil {
+			rec.Checkpoint = lastCP
+		}
 		switch {
 		case cancelled:
 			rec.Status = sim.ExperimentCancelled
@@ -459,15 +507,16 @@ func (r *Runner) run(id string) {
 
 // execute compiles and runs rec, publishing throttled progress. It returns
 // the report and the last progress snapshot.
-func (r *Runner) execute(ctx, storeCtx context.Context, rec sim.ExperimentRecord) (*experiment.Report, sim.Progress, error) {
+func (r *Runner) execute(ctx, storeCtx context.Context, rec sim.ExperimentRecord) (*experiment.Report, sim.Progress, *sim.ExperimentCheckpoint, error) {
 	var last sim.Progress
+	var lastCP *sim.ExperimentCheckpoint
 	bundle, err := r.store.GetModel(storeCtx, rec.Model.ID, rec.Model.Version)
 	if err != nil {
-		return nil, last, err
+		return nil, last, nil, err
 	}
 	exp, err := CompileExperiment(bundle, rec.Definition, rec.Format, r.reg)
 	if err != nil {
-		return nil, last, err
+		return nil, last, nil, err
 	}
 	th := throttle{interval: r.opts.ProgressInterval, now: r.opts.Now}
 	progress := func(done, total int) {
@@ -475,17 +524,28 @@ func (r *Runner) execute(ctx, storeCtx context.Context, rec sim.ExperimentRecord
 		if !th.allow(done >= total) {
 			return
 		}
-		r.publishProgress(storeCtx, rec.ID, last)
+		r.publishProgress(storeCtx, rec.ID, last, lastCP)
 	}
-	report, err := experiment.Run(ctx, exp, exp.PolicySource(), experiment.Options{Workers: r.opts.RunWorkers, Progress: progress})
-	return report, last, err
+	opts := experiment.Options{
+		Workers:    r.opts.RunWorkers,
+		Progress:   progress,
+		ResumeFrom: rec.Checkpoint,
+		Checkpoint: func(cp sim.ExperimentCheckpoint) {
+			lastCP = &cp
+		},
+	}
+	report, err := experiment.Run(ctx, exp, exp.PolicySource(), opts)
+	return report, last, lastCP, err
 }
 
 // publishProgress stores p as the progress of experiment id and notifies
 // its subscribers.
-func (r *Runner) publishProgress(ctx context.Context, id string, p sim.Progress) {
+func (r *Runner) publishProgress(ctx context.Context, id string, p sim.Progress, cp *sim.ExperimentCheckpoint) {
 	if _, err := r.store.UpdateExperiment(ctx, id, func(rec *sim.ExperimentRecord) error {
 		rec.Progress = p
+		if cp != nil {
+			rec.Checkpoint = cp
+		}
 		return nil
 	}); err != nil {
 		r.log.Warn("jobs: storing experiment progress", "experiment_id", id, "error", err)

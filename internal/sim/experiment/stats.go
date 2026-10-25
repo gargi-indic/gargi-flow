@@ -14,47 +14,49 @@ const z95 = 1.959963984540054
 // retains values for exact percentiles. Accumulators are merged with Chan's
 // parallel update; merging in a fixed order gives bit-identical results.
 type accumulator struct {
-	n        int
-	mean, m2 float64
-	min, max float64
-	values   []float64
+	N      int       `json:"n"`
+	Mean   float64   `json:"mean"`
+	M2     float64   `json:"m2"`
+	Min    float64   `json:"min"`
+	Max    float64   `json:"max"`
+	Values []float64 `json:"values"`
 }
 
 // add records x, retaining it for percentiles when retain is true.
 func (a *accumulator) add(x float64, retain bool) {
-	a.n++
-	if a.n == 1 {
-		a.min, a.max = x, x
+	a.N++
+	if a.N == 1 {
+		a.Min, a.Max = x, x
 	} else {
-		a.min = math.Min(a.min, x)
-		a.max = math.Max(a.max, x)
+		a.Min = math.Min(a.Min, x)
+		a.Max = math.Max(a.Max, x)
 	}
-	delta := x - a.mean
-	a.mean += delta / float64(a.n)
-	a.m2 += delta * (x - a.mean)
+	delta := x - a.Mean
+	a.Mean += delta / float64(a.N)
+	a.M2 += delta * (x - a.Mean)
 	if retain {
-		a.values = append(a.values, x)
+		a.Values = append(a.Values, x)
 	}
 }
 
 // merge folds b into a (Chan et al. parallel variance update).
 func (a *accumulator) merge(b *accumulator) {
-	if b.n == 0 {
+	if b.N == 0 {
 		return
 	}
-	a.values = append(a.values, b.values...)
-	if a.n == 0 {
-		a.n, a.mean, a.m2, a.min, a.max = b.n, b.mean, b.m2, b.min, b.max
+	a.Values = append(a.Values, b.Values...)
+	if a.N == 0 {
+		a.N, a.Mean, a.M2, a.Min, a.Max = b.N, b.Mean, b.M2, b.Min, b.Max
 		return
 	}
-	na, nb := float64(a.n), float64(b.n)
+	na, nb := float64(a.N), float64(b.N)
 	n := na + nb
-	delta := b.mean - a.mean
-	a.mean += delta * nb / n
-	a.m2 += b.m2 + delta*delta*na*nb/n
-	a.n += b.n
-	a.min = math.Min(a.min, b.min)
-	a.max = math.Max(a.max, b.max)
+	delta := b.Mean - a.Mean
+	a.Mean += delta * nb / n
+	a.M2 += b.M2 + delta*delta*na*nb/n
+	a.N += b.N
+	a.Min = math.Min(a.Min, b.Min)
+	a.Max = math.Max(a.Max, b.Max)
 }
 
 // estimate converts the accumulator into a Monte Carlo sim.Estimate. StdDev
@@ -64,20 +66,20 @@ func (a *accumulator) merge(b *accumulator) {
 // retained values (sorted in place). constraintProb is stored as is.
 func (a *accumulator) estimate(constraintProb map[string]float64) sim.Estimate {
 	e := sim.Estimate{
-		N:              a.n,
-		TotalWeight:    float64(a.n),
+		N:              a.N,
+		TotalWeight:    float64(a.N),
 		ConstraintProb: constraintProb,
 	}
-	if a.n == 0 {
+	if a.N == 0 {
 		return e
 	}
-	e.Mean = a.mean
-	if a.n > 1 {
-		e.StdDev = math.Sqrt(a.m2 / float64(a.n-1))
+	e.Mean = a.Mean
+	if a.N > 1 {
+		e.StdDev = math.Sqrt(a.M2 / float64(a.N-1))
 	}
-	half := z95 * e.StdDev / math.Sqrt(float64(a.n))
-	e.CI95Low, e.CI95High = a.mean-half, a.mean+half
-	e.Min, e.Max = a.min, a.max
+	half := z95 * e.StdDev / math.Sqrt(float64(a.N))
+	e.CI95Low, e.CI95High = a.Mean-half, a.Mean+half
+	e.Min, e.Max = a.Min, a.Max
 
 	sorted := a.sortedValues()
 	e.P50 = percentile(sorted, 0.50)
@@ -88,8 +90,8 @@ func (a *accumulator) estimate(constraintProb map[string]float64) sim.Estimate {
 // sortedValues sorts the retained values in place and returns them. The
 // accumulator's statistics do not depend on their order.
 func (a *accumulator) sortedValues() []float64 {
-	sort.Float64s(a.values)
-	return a.values
+	sort.Float64s(a.Values)
+	return a.Values
 }
 
 // percentile returns the nearest-rank p-th percentile of sorted: the
@@ -107,58 +109,58 @@ func percentile(sorted []float64, p float64) float64 {
 
 // policyStats aggregates the run records of one policy in one world.
 type policyStats struct {
-	objective accumulator
-	duration  accumulator
-	// satisfied counts the runs that satisfied each constraint, indexed like
+	Objective accumulator `json:"objective"`
+	Duration  accumulator `json:"duration"`
+	// Satisfied counts the runs that satisfied each constraint, indexed like
 	// evalSpec.constraints.
-	satisfied []int
-	// metrics accumulates each tracked metric, indexed like
+	Satisfied []int `json:"satisfied"`
+	// Metrics accumulates each tracked metric, indexed like
 	// evalSpec.metrics.
-	metrics []accumulator
-	// events counts the runs in which each prob() requirement condition
+	Metrics []accumulator `json:"metrics"`
+	// Events counts the runs in which each prob() requirement condition
 	// held, indexed like evalSpec.events.
-	events []int
+	Events []int `json:"events"`
 }
 
 func newPolicyStats(spec *evalSpec) *policyStats {
 	return &policyStats{
-		satisfied: make([]int, len(spec.constraints)),
-		metrics:   make([]accumulator, len(spec.metrics)),
-		events:    make([]int, len(spec.events)),
+		Satisfied: make([]int, len(spec.constraints)),
+		Metrics:   make([]accumulator, len(spec.metrics)),
+		Events:    make([]int, len(spec.events)),
 	}
 }
 
 // add records one run; retain controls value retention for percentiles.
 func (s *policyStats) add(rec sim.RunRecord, spec *evalSpec, retain bool) {
-	s.objective.add(rec.Objective, retain)
-	s.duration.add(rec.Duration.Seconds(), retain)
+	s.Objective.add(rec.Objective, retain)
+	s.Duration.add(rec.Duration.Seconds(), retain)
 	for i, name := range spec.constraints {
 		if rec.Constraints[name] {
-			s.satisfied[i]++
+			s.Satisfied[i]++
 		}
 	}
 	for i := range spec.metrics {
-		s.metrics[i].add(spec.metricValue(rec, i), retain)
+		s.Metrics[i].add(spec.metricValue(rec, i), retain)
 	}
 	for i, name := range spec.events {
 		if rec.Events[name] {
-			s.events[i]++
+			s.Events[i]++
 		}
 	}
 }
 
 // merge folds o into s.
 func (s *policyStats) merge(o *policyStats) {
-	s.objective.merge(&o.objective)
-	s.duration.merge(&o.duration)
-	for i, c := range o.satisfied {
-		s.satisfied[i] += c
+	s.Objective.merge(&o.Objective)
+	s.Duration.merge(&o.Duration)
+	for i, c := range o.Satisfied {
+		s.Satisfied[i] += c
 	}
-	for i := range o.metrics {
-		s.metrics[i].merge(&o.metrics[i])
+	for i := range o.Metrics {
+		s.Metrics[i].merge(&o.Metrics[i])
 	}
-	for i, c := range o.events {
-		s.events[i] += c
+	for i, c := range o.Events {
+		s.Events[i] += c
 	}
 }
 
@@ -168,7 +170,7 @@ func (s *policyStats) merge(o *policyStats) {
 // of the retained objective values covering that fraction of them, each
 // value weighted 1/(retained values), for the robust report's CVaR.
 func (s *policyStats) estimates(spec *evalSpec, cover float64) estimatePair {
-	n := float64(s.objective.n)
+	n := float64(s.Objective.N)
 	frac := func(c int) float64 {
 		if n == 0 {
 			return 0
@@ -177,23 +179,23 @@ func (s *policyStats) estimates(spec *evalSpec, cover float64) estimatePair {
 	}
 	probs := make(map[string]float64, len(spec.constraints))
 	for i, name := range spec.constraints {
-		probs[name] = frac(s.satisfied[i])
+		probs[name] = frac(s.Satisfied[i])
 	}
-	pair := estimatePair{objective: s.objective.estimate(probs), duration: s.duration.estimate(nil)}
+	pair := estimatePair{objective: s.Objective.estimate(probs), duration: s.Duration.estimate(nil)}
 	if len(spec.metrics) > 0 {
 		pair.metrics = make([]sim.Estimate, len(spec.metrics))
-		for i := range s.metrics {
-			pair.metrics[i] = s.metrics[i].estimate(nil)
+		for i := range s.Metrics {
+			pair.metrics[i] = s.Metrics[i].estimate(nil)
 		}
 	}
 	if len(spec.events) > 0 {
 		pair.events = make([]float64, len(spec.events))
-		for i, c := range s.events {
+		for i, c := range s.Events {
 			pair.events[i] = frac(c)
 		}
 	}
 	if cover > 0 {
-		pair.tail = sortedTail(s.objective.sortedValues(), cover)
+		pair.tail = sortedTail(s.Objective.sortedValues(), cover)
 	}
 	return pair
 }

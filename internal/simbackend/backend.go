@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"sort"
 
 	"github.com/gargi-indic/gargi-flow/internal/sim/experiment"
@@ -34,6 +35,8 @@ type Backend interface {
 	// ExplainPolicy renders a policy in plain language (internal/sim/explain).
 	// For Local, ref is a policy/v1 file path.
 	ExplainPolicy(ctx context.Context, ref string) (string, error)
+	// Cancel cancels a queued or running experiment.
+	Cancel(ctx context.Context, experimentID string) error
 }
 
 // RunOptions tunes RunExperiment.
@@ -44,6 +47,10 @@ type RunOptions struct {
 	// Progress, when set, receives progress snapshots while the experiment
 	// runs. Calls are serialized.
 	Progress func(sim.Progress)
+	// ExportJSONL is a path to a file where run records are exported as JSONL.
+	ExportJSONL string
+	// RecordSink, when set, receives run records as JSONL.
+	RecordSink io.Writer
 }
 
 // RunResult is the outcome of RunExperiment.

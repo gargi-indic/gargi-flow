@@ -14,6 +14,7 @@ import (
 	"github.com/gargi-indic/gargi-flow/internal/sim/experiment"
 	"github.com/gargi-indic/gargi-flow/internal/sim/model"
 	"github.com/gargi-indic/gargi-flow/pkg/engine"
+	"github.com/gargi-indic/gargi-flow/pkg/sim"
 	"github.com/stretchr/testify/require"
 )
 
@@ -600,4 +601,26 @@ func TestModelInit(t *testing.T) {
 		require.Equal(t, 2, code)
 		require.Contains(t, errOut, "usage: gargi model init")
 	})
+}
+
+func TestSimRun_ExportJSONL(t *testing.T) {
+	exp := loanCopy(t)
+	dir := t.TempDir()
+	exportPath := filepath.Join(dir, "export.jsonl")
+
+	code, _, errOut := gargi(t, "sim", "run", exp, "--local", "--export-jsonl", exportPath)
+	require.Equal(t, 0, code, errOut)
+
+	data, err := os.ReadFile(exportPath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	require.NotEmpty(t, lines)
+	for i, line := range lines {
+		var rec sim.RunRecord
+		err := json.Unmarshal([]byte(line), &rec)
+		require.NoError(t, err, "line %d: invalid JSON: %s", i, line)
+		require.NotEmpty(t, rec.World)
+		require.NotEmpty(t, rec.PolicyID)
+	}
 }

@@ -1,6 +1,7 @@
 package experiment
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"math"
@@ -393,4 +394,83 @@ func TestRun_LoanRecessionMean(t *testing.T) {
 		est.N, est.Mean, est.StdDev, se, est.CI95Low, est.CI95High, est.P50, est.P95, elapsed)
 	require.Equal(t, runs, est.N)
 	require.InDelta(t, recessionValue, est.Mean, 3*se)
+}
+
+func TestRun_CheckpointResume(t *testing.T) {
+	const runs = 200
+	const chunkSize = 50
+	exp := loanExperiment(t, loanDir, runs, "recession")
+	src := FilesSource{Files: []string{filepath.Join(loanDir, recessionFile)}}
+
+	// 1. Uninterrupted run
+	repFull, err := Run(context.Background(), exp, src, Options{
+		Workers:   2,
+		ChunkSize: chunkSize,
+	})
+	require.NoError(t, err)
+
+	// 2. Interrupted run: cancel after 2 chunks
+	ctx, cancel := context.WithCancel(context.Background())
+	var savedCP sim.ExperimentCheckpoint
+	var cpCount int
+	repInterrupted, err := Run(ctx, exp, src, Options{
+		Workers:   1,
+		ChunkSize: chunkSize,
+		Checkpoint: func(cp sim.ExperimentCheckpoint) {
+			savedCP = cp
+			cpCount++
+			if cp.CompletedChunks == 2 {
+				cancel()
+			}
+		},
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, repInterrupted)
+	require.Equal(t, 2, savedCP.CompletedChunks)
+	require.Equal(t, 4, savedCP.TotalChunks)
+	require.NotEmpty(t, savedCP.PartialResults)
+
+	// 3. Resumed run
+	repResumed, err := Run(context.Background(), exp, src, Options{
+		Workers:    2,
+		ChunkSize:  chunkSize,
+		ResumeFrom: &savedCP,
+	})
+	require.NoError(t, err)
+
+	// 4. Assert resumed run exactly matches uninterrupted run
+	require.Equal(t, marshal(t, repFull), marshal(t, repResumed))
+}
+
+func TestRun_RecordSink(t *testing.T) {
+	const runs = 20
+	const chunkSize = 10
+	exp := loanExperiment(t, loanDir, runs, "recession")
+	src := FilesSource{Files: []string{filepath.Join(loanDir, recessionFile)}}
+
+	var buf bytes.Buffer
+	rep, err := Run(context.Background(), exp, src, Options{
+		Workers:    2,
+		ChunkSize:  chunkSize,
+		RecordSink: &buf,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, rep)
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	// 1 world * 1 policy * 20 runs = 20 episodes
+	require.Len(t, lines, runs)
+	seen := make(map[int]bool)
+	for i, line := range lines {
+		var rec sim.RunRecord
+		err := json.Unmarshal([]byte(line), &rec)
+		require.NoError(t, err, "line %d: invalid JSON: %s", i, line)
+		require.Equal(t, sim.WorldID("recession"), rec.World)
+		require.Equal(t, recessionID, rec.PolicyID)
+		seen[rec.Replication] = true
+	}
+	require.Len(t, seen, runs)
+	for r := 0; r < runs; r++ {
+		require.True(t, seen[r], "expected replication %d in export", r)
+	}
 }

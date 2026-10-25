@@ -234,9 +234,10 @@ func RunEpisode(ctx context.Context, m *model.CompiledModel, w sim.World, p sim.
 	}
 
 	record := sim.RunRecord{
-		World:     w.ID,
-		PolicyID:  p.ID(),
-		Decisions: make(map[engine.NodeID]string),
+		World:       w.ID,
+		PolicyID:    p.ID(),
+		Replication: int(opts.Replication),
+		Decisions:   make(map[engine.NodeID]string),
 	}
 
 	vars := map[string]any{"world": worldParams(w)}

@@ -115,3 +115,17 @@ func TestServerE2E_UsageErrors(t *testing.T) {
 		require.NotEmpty(t, errOut, "%v", args)
 	}
 }
+
+func TestServerE2E_Cancel(t *testing.T) {
+	url := startServer(t)
+
+	// Missing experiment: exit 1 with error.
+	code, _, errOut := gargi(t, "sim", "cancel", "missing-id", "--server", url)
+	require.Equal(t, 1, code)
+	require.Contains(t, errOut, "gargi: ")
+
+	// Usage error: missing --server.
+	code, _, errOut = gargi(t, "sim", "cancel", "missing-id")
+	require.Equal(t, 2, code)
+	require.Contains(t, errOut, "usage: gargi sim cancel")
+}

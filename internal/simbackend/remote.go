@@ -446,6 +446,16 @@ func (r *Remote) Report(ctx context.Context, experimentID, kind string) (json.Ra
 	return json.RawMessage(data), nil
 }
 
+// Cancel cancels a queued or running experiment on the server.
+func (r *Remote) Cancel(ctx context.Context, experimentID string) error {
+	path := "/v1/experiments/" + url.PathEscape(experimentID) + ":cancel"
+	_, err := r.do(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // ExplainPolicy renders a policy stored in a server model. ref is
 // "<model-id>[@<version>]:<policy-name>", for example
 // "loan-underwriting:recession-v1.yaml". A .json policy name parses as JSON;

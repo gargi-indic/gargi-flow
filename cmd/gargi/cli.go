@@ -43,9 +43,10 @@ const errServerMode = "pass --local or --server URL"
 const usage = `usage:
   gargi model init --template canary|loan [dir]
   gargi model validate [--json] <sim.yaml>
-  gargi sim run <experiment.yaml> --local [--workers N] [--json] [--out report.json] [--emit-best DIR] [--top K]
+  gargi sim run <experiment.yaml> --local [--workers N] [--json] [--out report.json] [--emit-best DIR] [--export-jsonl path] [--top K]
   gargi sim run <experiment.yaml> --server URL [--json] [--out report.json] [--top K]
   gargi sim report <experiment-id> --server URL [--kind summary]
+  gargi sim cancel <experiment-id> --server URL
   gargi policy explain <policy.yaml|policy.json>
   gargi policy explain <model-id>[@<version>]:<policy-name> --server URL
   gargi mcp serve (--stdio | --http ADDR)
@@ -82,14 +83,21 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return exitUsage
 		}
 	case "sim":
-		if len(args) < 2 || (args[1] != "run" && args[1] != "report") {
+		if len(args) < 2 {
 			printf(stderr, "%s", usage)
 			return exitUsage
 		}
-		if args[1] == "report" {
+		switch args[1] {
+		case "run":
+			return simRun(args[2:], stdout, stderr)
+		case "report":
 			return simReport(args[2:], stdout, stderr)
+		case "cancel":
+			return simCancel(args[2:], stdout, stderr)
+		default:
+			printf(stderr, "%s", usage)
+			return exitUsage
 		}
-		return simRun(args[2:], stdout, stderr)
 	case "mcp":
 		if len(args) < 2 || args[1] != "serve" {
 			printf(stderr, "%s", usage)
@@ -274,6 +282,7 @@ func simRun(args []string, stdout, stderr io.Writer) int {
 	asJSON := fs.Bool("json", false, "Print the report as JSON")
 	out := fs.String("out", "", "Write the JSON report to this file")
 	emitBest := fs.String("emit-best", "", "Write each world's best policy as policy/v1 YAML into this directory")
+	exportJSONL := fs.String("export-jsonl", "", "Write each run record as JSONL to this file (only in --local mode)")
 	files, err := parseInterspersed(fs, args)
 	if err != nil {
 		return parseExit(err)
@@ -287,7 +296,7 @@ func simRun(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 	if len(files) != 1 {
-		printf(stderr, "%s\n", "usage: gargi sim run <experiment.yaml> (--local [--workers N] [--emit-best DIR] | --server URL) [--json] [--out report.json] [--top K]")
+		printf(stderr, "%s\n", "usage: gargi sim run <experiment.yaml> (--local [--workers N] [--emit-best DIR] [--export-jsonl path] | --server URL) [--json] [--out report.json] [--top K]")
 		return exitUsage
 	}
 	if *workers < 0 || *top < 0 {
@@ -296,8 +305,8 @@ func simRun(args []string, stdout, stderr io.Writer) int {
 	}
 	var backend simbackend.Backend = simbackend.NewLocal()
 	if *server != "" {
-		if *emitBest != "" || *workers != 0 {
-			printf(stderr, "%s\n", "gargi: --emit-best and --workers require --local")
+		if *emitBest != "" || *workers != 0 || *exportJSONL != "" {
+			printf(stderr, "%s\n", "gargi: --emit-best, --export-jsonl, and --workers require --local")
 			return exitUsage
 		}
 		remote, err := simbackend.NewRemote(*server, nil)
@@ -308,7 +317,7 @@ func simRun(args []string, stdout, stderr io.Writer) int {
 		backend = remote
 	}
 
-	res, err := backend.RunExperiment(context.Background(), files[0], simbackend.RunOptions{Workers: *workers, Top: *top})
+	res, err := backend.RunExperiment(context.Background(), files[0], simbackend.RunOptions{Workers: *workers, Top: *top, ExportJSONL: *exportJSONL})
 	if err != nil {
 		var internal *simbackend.InternalError
 		if errors.As(err, &internal) {
@@ -680,6 +689,32 @@ func printSolution(w io.Writer, s *experiment.WorldSolution) error {
 		printf(tw, "%s\t%.4f\t%s\t%s\n", is.InfoSet, is.ReachProbability, is.Choice, strings.Join(values, " "))
 	}
 	return tw.Flush()
+}
+
+// simCancel implements gargi sim cancel.
+func simCancel(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("gargi sim cancel", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	server := fs.String("server", "", "URL of the gargi server holding the experiment")
+	ids, err := parseInterspersed(fs, args)
+	if err != nil {
+		return parseExit(err)
+	}
+	if len(ids) != 1 || *server == "" {
+		printf(stderr, "%s\n", "usage: gargi sim cancel <experiment-id> --server URL")
+		return exitUsage
+	}
+	remote, err := simbackend.NewRemote(*server, nil)
+	if err != nil {
+		printf(stderr, "gargi: %v\n", err)
+		return exitUsage
+	}
+	if err := remote.Cancel(context.Background(), ids[0]); err != nil {
+		printf(stderr, "gargi: %v\n", err)
+		return exitError
+	}
+	printf(stdout, "Cancelled experiment %s\n", ids[0])
+	return exitOK
 }
 
 // formatSeconds formats a duration in seconds, rounded to the second.
