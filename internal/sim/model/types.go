@@ -57,6 +57,18 @@ type Behavior struct {
 	Abandon  *Abandon             `json:"abandon,omitempty"`
 	Fail     *Fail                `json:"fail,omitempty"`
 	Output   map[string]ValueSpec `json:"output,omitempty"`
+	Agent    *AgentConfig         `json:"agent,omitempty"`
+}
+
+// AgentConfig defines external agent invocation configuration.
+type AgentConfig struct {
+	Endpoint     string            `json:"endpoint"`
+	Model        string            `json:"model,omitempty"`
+	SystemPrompt string            `json:"system_prompt,omitempty"`
+	Headers      map[string]string `json:"headers,omitempty"`
+	Timeout      string            `json:"timeout,omitempty"`
+	MaxRequests  int               `json:"max_requests,omitempty"`
+	MaxCost      float64           `json:"max_cost,omitempty"`
 }
 
 // Abandon configures the probability of a task being abandoned.
@@ -156,9 +168,10 @@ type ParamSpec struct {
 
 // Decision contains the rules or table used to make a policy choice.
 type Decision struct {
-	Rules   []Rule     `json:"rules,omitempty"`
-	Table   []TableRow `json:"table,omitempty"`
-	Default string     `json:"default,omitempty"`
+	Rules   []Rule       `json:"rules,omitempty"`
+	Table   []TableRow   `json:"table,omitempty"`
+	Default string       `json:"default,omitempty"`
+	Agent   *AgentConfig `json:"agent,omitempty"`
 }
 
 // Rule represents a conditional choice in a policy decision.

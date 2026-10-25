@@ -117,6 +117,7 @@ type CompiledBehavior struct {
 	Resource string
 	Patience *CompiledParam
 	Outputs  map[string]CompiledValue
+	Agent    *AgentConfig
 }
 
 // CompiledModel is a validated sim/v1 model with every CEL program compiled
@@ -564,7 +565,7 @@ func compileWithGraph(def *Sim, gDef *engine.GraphDefinition, reg *engine.Regist
 }
 
 func compileBehavior(b Behavior, base engine.Path, env *cel.Env, errs *engine.ValidationErrors) CompiledBehavior {
-	cb := CompiledBehavior{Outputs: make(map[string]CompiledValue, len(b.Output)), Resource: b.Resource}
+	cb := CompiledBehavior{Outputs: make(map[string]CompiledValue, len(b.Output)), Resource: b.Resource, Agent: b.Agent}
 	if b.Patience != nil {
 		switch p := b.Patience.(type) {
 		case string:

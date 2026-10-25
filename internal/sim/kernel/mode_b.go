@@ -189,7 +189,7 @@ func RunModeB(
 		return sim.ReplicationRecord{}, err
 	}
 	decisionsShared := make(map[engine.NodeID]string)
-	if err := nodes.RegisterDecision(reg, &recordingChooser{policy: policy, decisions: decisionsShared}); err != nil {
+	if err := nodes.RegisterDecision(reg, &recordingChooser{policy: policy, decisions: decisionsShared, replication: uint64(opts.Replication)}); err != nil {
 		return sim.ReplicationRecord{}, err
 	}
 
@@ -343,17 +343,19 @@ func RunModeB(
 		}
 		streamName := fmt.Sprintf("%s/%s", ent.id, nodeID)
 		outcome, err := behavior.New(cb, failClass).Sample(ctx, s, sim.BehaviorInput{
-			NodeID:  nodeID,
-			Inputs:  inputs,
-			Latents: ent.latents,
-			World:   world,
+			NodeID:      nodeID,
+			Inputs:      inputs,
+			Latents:     ent.latents,
+			World:       world,
+			Replication: uint64(opts.Replication),
 		})
 		if err != nil {
 			outcome, _ = behavior.New(cb, failClass).Sample(ctx, s, sim.BehaviorInput{
-				NodeID:  nodeID,
-				Inputs:  inputs,
-				Latents: ent.latents,
-				World:   world,
+				NodeID:      nodeID,
+				Inputs:      inputs,
+				Latents:     ent.latents,
+				World:       world,
+				Replication: uint64(opts.Replication),
 			})
 		}
 		_ = streamName

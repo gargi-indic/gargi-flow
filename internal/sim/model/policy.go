@@ -38,10 +38,15 @@ type compiledDecision struct {
 	Table    []compiledTableRow
 	Default  string
 	IsTable  bool
+	Agent    *AgentConfig
 	// BindsParams reports whether the rule environment declares the params
 	// variable (it does unless an observed node is itself named params).
 	BindsParams bool
 }
+
+// AgentDecisionChooser handles executing decisions with an agent configuration.
+// It is registered by internal/sim/agent to break package import cycles.
+var AgentDecisionChooser func(ctx context.Context, config *AgentConfig, decision string, options []string, observed map[string]any, replication uint64) (string, error)
 
 type compiledRule struct {
 	When   cel.Program
@@ -73,11 +78,19 @@ func (p *runtimePolicy) Describe() string {
 // choice. Tables return the choice of the first row whose observed values all
 // equal the observation exactly (nil matches null, numbers are compared as
 // float64), otherwise the default.
-func (p *runtimePolicy) Choose(ctx context.Context, decision engine.NodeID, obs sim.Observation, _ []string) (string, error) {
+func (p *runtimePolicy) Choose(ctx context.Context, decision engine.NodeID, obs sim.Observation, options []string) (string, error) {
 	nodeID := string(decision)
 	d, ok := p.decisions[nodeID]
 	if !ok {
 		return "", fmt.Errorf("no policy for decision %q", nodeID)
+	}
+
+	if d.Agent != nil {
+		if AgentDecisionChooser == nil {
+			return "", fmt.Errorf("agent decision chooser not registered")
+		}
+		rep := sim.ReplicationFromContext(ctx)
+		return AgentDecisionChooser(ctx, d.Agent, nodeID, options, obs, rep)
 	}
 
 	if d.IsTable {
@@ -307,16 +320,19 @@ func CompilePolicy(p *Policy, m *CompiledModel) (sim.Policy, *engine.ValidationE
 		cd := &compiledDecision{
 			Observes: decisionObserves(node),
 			IsTable:  len(pd.Table) > 0,
+			Agent:    pd.Agent,
 		}
 		observed := make(map[string]bool, len(cd.Observes))
 		for _, o := range cd.Observes {
 			observed[o] = true
 		}
 
-		if cd.IsTable {
-			compileTable(pd, path, observed, checkOption, cd, errs)
-		} else {
-			compileRules(pd, path, cd.Observes, observed, declared, checkOption, cd, errs)
+		if cd.Agent == nil {
+			if cd.IsTable {
+				compileTable(pd, path, observed, checkOption, cd, errs)
+			} else {
+				compileRules(pd, path, cd.Observes, observed, declared, checkOption, cd, errs)
+			}
 		}
 		rp.decisions[id] = cd
 	}

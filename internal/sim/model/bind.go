@@ -176,7 +176,10 @@ func bindBehaviors(val any, path string, sim *Sim, errs *engine.ValidationErrors
 				errs.Add(p+".patience", engine.CodeInvalidType, "expected number or string")
 			}
 		}
-		checkUnknownFields(bm, []string{"cost", "duration", "abandon", "fail", "output", "resource", "patience"}, p, errs)
+		if ag, ok := bm["agent"]; ok {
+			b.Agent = bindAgentConfig(ag, p+".agent", errs)
+		}
+		checkUnknownFields(bm, []string{"cost", "duration", "abandon", "fail", "output", "resource", "patience", "agent"}, p, errs)
 		sim.Behaviors[k] = b
 	}
 }
@@ -668,8 +671,76 @@ func bindDecision(val any, path string, errs *engine.ValidationErrors) Decision 
 			errs.Add(path+".default", engine.CodeInvalidType, "expected string")
 		}
 	}
-	checkUnknownFields(m, []string{"rules", "table", "default"}, path, errs)
+	if ag, ok := m["agent"]; ok {
+		d.Agent = bindAgentConfig(ag, path+".agent", errs)
+	}
+	checkUnknownFields(m, []string{"rules", "table", "default", "agent"}, path, errs)
 	return d
+}
+
+func bindAgentConfig(val any, path string, errs *engine.ValidationErrors) *AgentConfig {
+	if val == nil {
+		return nil
+	}
+	m, ok := val.(map[string]any)
+	if !ok {
+		errs.Add(path, engine.CodeInvalidType, "expected object")
+		return nil
+	}
+	var cfg AgentConfig
+	if ep, ok := m["endpoint"]; ok {
+		if s, ok := ep.(string); ok {
+			cfg.Endpoint = s
+		} else {
+			errs.Add(path+".endpoint", engine.CodeInvalidType, "expected string")
+		}
+	}
+	if model, ok := m["model"]; ok {
+		if s, ok := model.(string); ok {
+			cfg.Model = s
+		} else {
+			errs.Add(path+".model", engine.CodeInvalidType, "expected string")
+		}
+	}
+	if sp, ok := m["system_prompt"]; ok {
+		if s, ok := sp.(string); ok {
+			cfg.SystemPrompt = s
+		} else {
+			errs.Add(path+".system_prompt", engine.CodeInvalidType, "expected string")
+		}
+	}
+	if headers, ok := m["headers"]; ok {
+		cfg.Headers = bindStringMap(headers, path+".headers", errs)
+	}
+	if to, ok := m["timeout"]; ok {
+		if s, ok := to.(string); ok {
+			cfg.Timeout = s
+		} else {
+			errs.Add(path+".timeout", engine.CodeInvalidType, "expected string")
+		}
+	}
+	if mr, ok := m["max_requests"]; ok {
+		if c, ok := getInt(mr); ok {
+			cfg.MaxRequests = c
+			if c < 1 {
+				errs.Add(path+".max_requests", engine.CodeInvalidValue, "max_requests must be >= 1")
+			}
+		} else {
+			errs.Add(path+".max_requests", engine.CodeInvalidType, "expected integer")
+		}
+	}
+	if mc, ok := m["max_cost"]; ok {
+		if f, ok := getFloat(mc); ok {
+			cfg.MaxCost = f
+			if f < 0 {
+				errs.Add(path+".max_cost", engine.CodeInvalidValue, "max_cost must be >= 0")
+			}
+		} else {
+			errs.Add(path+".max_cost", engine.CodeInvalidType, "expected number")
+		}
+	}
+	checkUnknownFields(m, []string{"endpoint", "model", "system_prompt", "headers", "timeout", "max_requests", "max_cost"}, path, errs)
+	return &cfg
 }
 
 func bindExperiment(tree any) (*Experiment, error) {
