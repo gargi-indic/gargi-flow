@@ -50,19 +50,16 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 
 **Epic #136 exit criterion verified:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a prompt, runs it, and extracts a Pareto set of policies, all verified by `TestCanary_AgentWalkthrough` and `TestCanaryGolden_ParetoSet`.
 
-## 4. Current state and immediate resume steps (2026-10-25, ~08:55 UTC)
-0. **Epic #136 closed!** All 11 tasks merged, exit criteria verified, PR #211 squash-merged into `main` (`3731a2a`).
-1. **Active epic:** **#148 Simulation P2: coupled simulation, optimization and agents**.
-   - Step 1: **#149** Kernel mode B: arrivals, shared resources and queues (`agent/jules` → fallback) — ✅ **merged** PR #212 (`500068f`), closed.
-   - Step 2: **#150** Queueing metrics: utilization, queue length, wait time, throughput (`agent/jules` → fallback) — ✅ **merged** PR #213 (`52ae08f`), closed.
-   - Step 3: **#151** Racing optimizer (successive halving with paired CIs) (`agent/claude`) — ✅ **merged** PR #215 (`4dd080f`), closed.
-   - Step 4: **#152** Bayesian optimizer (TPE) (`agent/jules` session 2914001294866577741 hit 30m fallback → sub-agent) — ✅ **merged** PR #216 (`ee11006`), closed.
-   - Step 5: **#153** Agent behaviors and agent policies (`agent/jules` session 14452285284536427754 hit 30m fallback → sub-agent) — ✅ **merged** PR #217 (`3ea5ac2`), closed.
-   - Step 6: **#154** Tournament report for policies and agents (`agent/jules` session 15545179576215189747 hit 30m fallback → sub-agent) — ✅ **merged** PR #218 (`04a7d27`), closed.
-   - Step 7: **#155** Experiment scaling: chunking, checkpoints, cancellation, sample export (`agent/jules` session 15861662702259276842 FAILED → sub-agent) — ✅ **merged** PR #219 (`662ecfc`), closed.
-   - Step 8: **#156** Claims triage model template and golden test (`agent/jules` session 10313433399073077267 hit 30m → sub-agent) — ✅ **merged** PR #220 (`0a9a523`), closed.
-   - Step 9: **#157** Canvas: behavior editor, resources panel and Pareto chart (`agent/jules` session 5942501674483672062 hit 30m → sub-agent) — ✅ **merged** PR #221 (`19ca698`), closed.
-   - Step 10: **#158** Mode C horizon (multi-period) simulation — ⏸ **needs-discussion** (open architecture question 1: build now or defer to customer demand).
-   - **Epic #148 Exit Criterion Achieved:** Case 2 (claims triage) runs end-to-end with Mode B arrivals, shared adjuster resource queues, Bayesian optimization, and visual Pareto / tournament reporting in the UI.
+## 4. Current state and immediate resume steps (2026-10-25, ~16:25 UTC)
+0. **Epic #148 closed!** Exit criterion achieved, all 9 tasks merged, Issue #158 deferred to customer demand per human decision. Epic #148 closed.
+1. **Active epic:** **#159 Simulation P3: deploy, observe and recalibrate**.
+   - Step 1: **#160** PolicyStore contract and adapters (`agent/jules` session 8721925365230232836) — ⏳ **starting**.
+   - Step 2: **#161** Production decision node with pinned policy versions (`agent/jules`) — ⏳ pending.
+   - Step 3: **#162** DeployPolicy API with shadow and live modes (`agent/jules`) — ⏳ pending.
+   - Step 4: **#163** Outcome ingestion API (`agent/jules`) — ⏳ pending.
+   - Step 5: **#164** Calibration from executions and outcomes (`agent/claude`) — ⏳ pending.
+   - Step 6: **#165** Drift report: predicted vs observed per policy version (`agent/claude`) — ⏳ pending.
+   - Step 7: **#166** Temporal fidelity check: gargi sim verify (`agent/jules`) — ⏳ pending.
+   - Step 8: **#167** Canvas: Deploy mode and live drift overlay (`agent/claude`) — ⏳ pending.
 2. **Next immediate action:**
-   - Await human decision on Issue #158. If deferred, close Epic #148 and proceed to Epic #159 (Simulation P3: deploy, observe, recalibrate; starting with Issue #160).
+   - Dispatch Issue #160 to Jules with 30-min monitoring/fallback rule.
