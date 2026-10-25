@@ -575,6 +575,17 @@ func printReports(w io.Writer, rs *experiment.ReportSet) error {
 			}
 		}
 	}
+	if r := rs.Tournament; r != nil {
+		printf(w, "\nTournament (alpha %g; %d policies)\n", r.Alpha, len(r.Rankings))
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		printf(tw, "%s\n", "RANK\tPOLICY\tMEAN\tWINS\tLOSSES\tTIES\tWIN RATE")
+		for _, rk := range r.Rankings {
+			printf(tw, "%d\t%s\t%.4g\t%d\t%d\t%d\t%.2f\n", rk.Rank, rk.PolicyID, rk.Mean, rk.Wins, rk.Losses, rk.Ties, rk.WinRate)
+		}
+		if err := tw.Flush(); err != nil {
+			return err
+		}
+	}
 	return printExplainReports(w, rs)
 }
 

@@ -18,6 +18,8 @@ const (
 	KindRegret Kind = "regret"
 	// KindRobust is the expected-value, maximin and CVaR picks.
 	KindRobust Kind = "robust"
+	// KindTournament is the ranking and pairwise win rates.
+	KindTournament Kind = "tournament"
 	// KindPareto is the per-world Pareto frontier of two metrics.
 	KindPareto Kind = "pareto"
 	// KindVOI is the value of observing a node, per world.
@@ -78,6 +80,8 @@ type Spec struct {
 	HasRange bool
 	// Lo and Hi are the explicit sweep range of a flip_point report.
 	Lo, Hi float64
+	// Alpha is the significance level of a tournament report (default 0.05).
+	Alpha float64
 }
 
 var (
@@ -93,6 +97,7 @@ var (
 //
 //	regret
 //	robust
+//	tournament[:<alpha>]
 //	pareto:<metricA>[:min|max],<metricB>[:min|max]
 //	voi:<node>
 //	flip_point:<param>[:<lo>,<hi>]
@@ -110,6 +115,16 @@ func ParseSpec(s string) (Spec, error) {
 			return Spec{}, fmt.Errorf("report %q takes no arguments", kind)
 		}
 		return Spec{Kind: Kind(kind)}, nil
+	case KindTournament:
+		alpha := 0.05
+		if hasArgs {
+			v, err := strconv.ParseFloat(args, 64)
+			if err != nil || v <= 0 || v >= 1 {
+				return Spec{}, fmt.Errorf("tournament alpha %q must be in (0, 1)", args)
+			}
+			alpha = v
+		}
+		return Spec{Kind: KindTournament, Alpha: alpha}, nil
 	case KindPareto:
 		if !hasArgs {
 			return Spec{}, errors.New("pareto needs two metrics: pareto:<metricA>[:min|max],<metricB>[:min|max]")
@@ -142,7 +157,7 @@ func ParseSpec(s string) (Spec, error) {
 	case KindFlipPoint:
 		return parseFlipPoint(args, hasArgs)
 	default:
-		return Spec{}, fmt.Errorf("unknown report %q: want regret, robust, pareto:<metricA>[:min|max],<metricB>[:min|max], voi:<node>, flip_point:<param>[:<lo>,<hi>], path_heatmap or policy_tree", s)
+		return Spec{}, fmt.Errorf("unknown report %q: want regret, robust, tournament[:<alpha>], pareto:<metricA>[:min|max],<metricB>[:min|max], voi:<node>, flip_point:<param>[:<lo>,<hi>], path_heatmap or policy_tree", s)
 	}
 }
 

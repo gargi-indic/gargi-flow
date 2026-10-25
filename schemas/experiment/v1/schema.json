@@ -243,9 +243,9 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^(regret|robust|path_heatmap|policy_tree|pareto:[a-z_][a-z0-9_]*(:(min|max))?,[a-z_][a-z0-9_]*(:(min|max))?|voi:[A-Za-z0-9][A-Za-z0-9_.-]{0,127}|flip_point:[A-Za-z_][A-Za-z0-9_]*(:[-+0-9.eE]+,[-+0-9.eE]+)?)$"
+        "pattern": "^(regret|robust|path_heatmap|policy_tree|tournament(:[0-9.]+)?|pareto:[a-z_][a-z0-9_]*(:(min|max))?,[a-z_][a-z0-9_]*(:(min|max))?|voi:[A-Za-z0-9][A-Za-z0-9_.-]{0,127}|flip_point:[A-Za-z_][A-Za-z0-9_]*(:[-+0-9.eE]+,[-+0-9.eE]+)?)$"
       },
-      "description": "Decision-quality reports: regret (policy tuned for each world evaluated in every world), robust (best by expected value under world_prior, maximin and CVaR), pareto:<metricA>[:min|max],<metricB>[:min|max] (per-world non-dominated set; goals default to max), voi:<node> (optimal EV with the node observed minus without it, its cost removed), flip_point:<param>[:<lo>,<hi>] (where the first world's optimal policy changes as a numeric world param is swept; default range: the param's minimum and maximum across the worlds), path_heatmap (probability of every node and edge under each world's best policy) and policy_tree (each world's optimal policy as a tree of information sets). regret and robust need at least two worlds; voi, flip_point and policy_tree need a discrete model"
+      "description": "Decision-quality reports: regret (policy tuned for each world evaluated in every world), robust (best by expected value under world_prior, maximin and CVaR), tournament (ranking, pairwise win rates, paired difference CIs under CRN), pareto:<metricA>[:min|max],<metricB>[:min|max] (per-world non-dominated set; goals default to max), voi:<node> (optimal EV with the node observed minus without it, its cost removed), flip_point:<param>[:<lo>,<hi>] (where the first world's optimal policy changes as a numeric world param is swept; default range: the param's minimum and maximum across the worlds), path_heatmap (probability of every node and edge under each world's best policy) and policy_tree (each world's optimal policy as a tree of information sets). regret and robust need at least two worlds; voi, flip_point and policy_tree need a discrete model"
     },
     "world_prior": {
       "type": "object",
