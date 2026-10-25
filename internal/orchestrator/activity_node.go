@@ -34,12 +34,16 @@ type NodeActivityInput struct {
 	Attempt           int                `json:"attempt"`
 	MaxAttempts       int                `json:"maxAttempts,omitempty"`
 	HeartbeatInterval time.Duration      `json:"heartbeatInterval,omitempty"`
+	PolicyID          string             `json:"policyId,omitempty"`
+	PolicyVersion     string             `json:"policyVersion,omitempty"`
 }
 
 // NodeActivityResult is the output returned on successful activity completion.
 type NodeActivityResult struct {
-	NodeID   engine.NodeID         `json:"nodeId"`
-	Mutation *engine.StateMutation `json:"mutation,omitempty"`
+	NodeID        engine.NodeID         `json:"nodeId"`
+	Mutation      *engine.StateMutation `json:"mutation,omitempty"`
+	PolicyID      string                `json:"policyId,omitempty"`
+	PolicyVersion string                `json:"policyVersion,omitempty"`
 }
 
 // NodeActivities holds dependencies for executing graph nodes as Temporal activities.
@@ -56,12 +60,14 @@ func NewNodeActivities(registry *engine.Registry) *NodeActivities {
 
 // executeNodeContext implements engine.NodeContext.
 type executeNodeContext struct {
-	execID  engine.ExecutionID
-	nodeID  engine.NodeID
-	config  map[string]any
-	inputs  map[string]any
-	state   *engine.GraphState
-	attempt int
+	execID        engine.ExecutionID
+	nodeID        engine.NodeID
+	config        map[string]any
+	inputs        map[string]any
+	state         *engine.GraphState
+	attempt       int
+	policyID      string
+	policyVersion string
 }
 
 func (c *executeNodeContext) ExecutionID() engine.ExecutionID { return c.execID }
@@ -87,6 +93,12 @@ func (c *executeNodeContext) Inputs() map[string]any {
 }
 func (c *executeNodeContext) State() *engine.GraphState { return c.state }
 func (c *executeNodeContext) Attempt() int              { return c.attempt }
+func (c *executeNodeContext) PolicyID() string          { return c.policyID }
+func (c *executeNodeContext) PolicyVersion() string     { return c.policyVersion }
+func (c *executeNodeContext) SetResolvedPolicy(policyID, version string) {
+	c.policyID = policyID
+	c.policyVersion = version
+}
 
 func deepCopyMap(m map[string]any) map[string]any {
 	if m == nil {
@@ -156,12 +168,14 @@ func (a *NodeActivities) ExecuteNodeActivity(
 	defer span.End()
 
 	nodeCtx := &executeNodeContext{
-		execID:  input.ExecutionID,
-		nodeID:  input.NodeID,
-		config:  deepCopyMap(input.Config),
-		inputs:  deepCopyMap(input.Inputs),
-		state:   input.GraphState,
-		attempt: attempt,
+		execID:        input.ExecutionID,
+		nodeID:        input.NodeID,
+		config:        deepCopyMap(input.Config),
+		inputs:        deepCopyMap(input.Inputs),
+		state:         input.GraphState,
+		attempt:       attempt,
+		policyID:      input.PolicyID,
+		policyVersion: input.PolicyVersion,
 	}
 
 	hbInterval := input.HeartbeatInterval
@@ -252,8 +266,10 @@ func (a *NodeActivities) ExecuteNodeActivity(
 	span.SetStatus(codes.Ok, "success")
 
 	return &NodeActivityResult{
-		NodeID:   input.NodeID,
-		Mutation: mutation,
+		NodeID:        input.NodeID,
+		Mutation:      mutation,
+		PolicyID:      nodeCtx.PolicyID(),
+		PolicyVersion: nodeCtx.PolicyVersion(),
 	}, nil
 }
 

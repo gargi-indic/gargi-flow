@@ -10,12 +10,14 @@ import (
 )
 
 type fakeNodeContext struct {
-	executionID engine.ExecutionID
-	nodeID      engine.NodeID
-	config      map[string]any
-	inputs      map[string]any
-	state       *engine.GraphState
-	attempt     int
+	executionID   engine.ExecutionID
+	nodeID        engine.NodeID
+	config        map[string]any
+	inputs        map[string]any
+	state         *engine.GraphState
+	attempt       int
+	policyID      string
+	policyVersion string
 }
 
 func (f *fakeNodeContext) ExecutionID() engine.ExecutionID { return f.executionID }
@@ -24,6 +26,8 @@ func (f *fakeNodeContext) Config() map[string]any          { return f.config }
 func (f *fakeNodeContext) Inputs() map[string]any          { return f.inputs }
 func (f *fakeNodeContext) State() *engine.GraphState       { return f.state }
 func (f *fakeNodeContext) Attempt() int                    { return f.attempt }
+func (f *fakeNodeContext) PolicyID() string                { return f.policyID }
+func (f *fakeNodeContext) PolicyVersion() string           { return f.policyVersion }
 
 func TestPassthroughNode(t *testing.T) {
 	reg := engine.NewRegistry()

@@ -27,14 +27,24 @@ type Dependencies struct {
 
 	// Signals is used by the wait_for_signal node to wait for external signals.
 	Signals SignalSource
+
+	// PolicyStore is used by the decision node to evaluate policies.
+	PolicyStore engine.PolicyStore
 }
 
 // RegisterDefaults registers the default reference node implementations into the provided registry.
-// Supported nodes: passthrough, transform, conditional_branch, http_call, wait_for_signal.
+// Supported nodes: passthrough, transform, conditional_branch, http_call, wait_for_signal, decision (when PolicyStore is provided).
 // Returns an error if the registry is nil or if any registration fails.
 func RegisterDefaults(reg *engine.Registry, deps Dependencies) error {
 	if reg == nil {
 		return errors.New("registry cannot be nil")
+	}
+
+	if deps.PolicyStore != nil {
+		chooser := NewPolicyDecisionChooser(deps.PolicyStore)
+		if err := RegisterDecision(reg, chooser); err != nil {
+			return fmt.Errorf("failed to register decision: %w", err)
+		}
 	}
 
 	if err := reg.Register("passthrough", func(_ any) (engine.NodeInterface, error) {

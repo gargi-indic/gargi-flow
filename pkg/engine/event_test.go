@@ -203,6 +203,18 @@ func TestEvent_JSONRoundTrip(t *testing.T) {
 			},
 		},
 		{
+			name:      "NodeCompletedWithPolicy",
+			eventType: EventTypeNodeCompleted,
+			nodeID:    "node-decision",
+			payload: NodeCompletedPayload{
+				Status:        StatusSucceeded,
+				Output:        map[string]any{"choice": "approve"},
+				Version:       2,
+				PolicyID:      "underwriting-policy",
+				PolicyVersion: "v1.2",
+			},
+		},
+		{
 			name:      "NodeFailed",
 			eventType: EventTypeNodeFailed,
 			nodeID:    "node-1",

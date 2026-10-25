@@ -94,6 +94,15 @@ func (s StoreConfig) EffectiveExperimentsDriver() string {
 	return "memory"
 }
 
+// EffectivePoliciesDriver returns the driver configured for the policy store.
+// Falls back to postgres when Driver is postgres, and memory otherwise.
+func (s StoreConfig) EffectivePoliciesDriver() string {
+	if s.Driver == "postgres" {
+		return "postgres"
+	}
+	return "memory"
+}
+
 // DriversInUse returns a deduplicated list of drivers required across all configured capabilities.
 func (s StoreConfig) DriversInUse() []string {
 	seen := make(map[string]bool)

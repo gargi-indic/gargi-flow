@@ -25,9 +25,10 @@ const (
 
 // GraphWorkflowInput is the input payload for GraphExecutionWorkflow.
 type GraphWorkflowInput struct {
-	ExecutionID  engine.ExecutionID      `json:"executionId"`
-	Definition   *engine.GraphDefinition `json:"definition"`
-	InitialState map[string]any          `json:"initialState,omitempty"`
+	ExecutionID    engine.ExecutionID      `json:"executionId"`
+	Definition     *engine.GraphDefinition `json:"definition"`
+	InitialState   map[string]any          `json:"initialState,omitempty"`
+	PinnedPolicies map[string]string       `json:"pinnedPolicies,omitempty"`
 }
 
 // GraphWorkflowResult is the output returned when GraphExecutionWorkflow finishes.
@@ -39,14 +40,21 @@ type GraphWorkflowResult struct {
 	RejectedSignals []RejectedSignal   `json:"rejectedSignals,omitempty"`
 }
 
-// WorkflowRunner binds an optional custom engine.Registry to GraphExecutionWorkflow.
+// WorkflowRunner binds an optional custom engine.Registry and optional engine.EventSink to GraphExecutionWorkflow.
 type WorkflowRunner struct {
-	registry *engine.Registry
+	registry  *engine.Registry
+	eventSink engine.EventSink
 }
 
 // NewWorkflowRunner creates a WorkflowRunner with the given registry (or a default registry if nil).
 func NewWorkflowRunner(registry *engine.Registry) *WorkflowRunner {
 	return &WorkflowRunner{registry: registry}
+}
+
+// WithEventSink configures an engine.EventSink for the workflow runner.
+func (r *WorkflowRunner) WithEventSink(sink engine.EventSink) *WorkflowRunner {
+	r.eventSink = sink
+	return r
 }
 
 // GraphExecutionWorkflow is the top-level Temporal workflow function driving the reactive scheduler.
@@ -160,7 +168,29 @@ func (r *WorkflowRunner) GraphExecutionWorkflow(
 
 	clock := func() time.Time { return workflow.Now(ctx) }
 	seqGen := reactive.NewSequenceGenerator(0)
-	emitter := reactive.NewTransitionEmitter(execID, seqGen, clock, nil)
+	emitter := reactive.NewTransitionEmitter(execID, seqGen, clock, r.eventSink)
+	executedPolicies := make(map[engine.NodeID][2]string)
+	emitter.SetPolicyResolver(func(nodeID engine.NodeID) (string, string) {
+		if p, ok := executedPolicies[nodeID]; ok && p[0] != "" {
+			return p[0], p[1]
+		}
+		for _, nd := range input.Definition.Nodes {
+			if nd.ID == nodeID && nd.Type == "decision" {
+				polID := ""
+				if p, ok := nd.Config["policy"].(string); ok && p != "" {
+					polID = p
+				} else if len(input.PinnedPolicies) == 1 {
+					for k := range input.PinnedPolicies {
+						polID = k
+					}
+				}
+				if polID != "" && input.PinnedPolicies != nil {
+					return polID, input.PinnedPolicies[polID]
+				}
+			}
+		}
+		return "", ""
+	})
 	resolver := reactive.NewPreconditionResolver(nil)
 	scheduler := reactive.NewScheduler(g, reg, resolver, emitter)
 	detector := reactive.NewTerminalDetector(g, input.Definition.FailurePolicy, emitter)
@@ -366,15 +396,31 @@ func (r *WorkflowRunner) GraphExecutionWorkflow(
 				actOpts.RetryPolicy = ResolveNodeRetryPolicy(&nodeDef, input.Definition.RetryPolicies)
 				actCtx := workflow.WithActivityOptions(ctx, actOpts)
 
+				policyID := ""
+				policyVersion := ""
+				if pol, ok := nodeDef.Config["policy"].(string); ok && pol != "" {
+					policyID = pol
+					if input.PinnedPolicies != nil {
+						policyVersion = input.PinnedPolicies[pol]
+					}
+				} else if nodeDef.Type == "decision" && len(input.PinnedPolicies) == 1 {
+					for k, v := range input.PinnedPolicies {
+						policyID = k
+						policyVersion = v
+					}
+				}
+
 				actInput := NodeActivityInput{
-					ExecutionID: execID,
-					NodeID:      nodeID,
-					NodeType:    nodeDef.Type,
-					Config:      nodeDef.Config,
-					Inputs:      inputs,
-					GraphState:  state,
-					Attempt:     1,
-					MaxAttempts: int(actOpts.RetryPolicy.MaximumAttempts),
+					ExecutionID:   execID,
+					NodeID:        nodeID,
+					NodeType:      nodeDef.Type,
+					Config:        nodeDef.Config,
+					Inputs:        inputs,
+					GraphState:    state,
+					Attempt:       1,
+					MaxAttempts:   int(actOpts.RetryPolicy.MaximumAttempts),
+					PolicyID:      policyID,
+					PolicyVersion: policyVersion,
 				}
 
 				inFlightCount++
@@ -430,6 +476,9 @@ func (r *WorkflowRunner) GraphExecutionWorkflow(
 			for _, outcome := range completedOutcomes {
 				oldNS := state.NodeState(outcome.nodeID)
 				if outcome.err == nil {
+					if outcome.result != nil && outcome.result.PolicyID != "" {
+						executedPolicies[outcome.nodeID] = [2]string{outcome.result.PolicyID, outcome.result.PolicyVersion}
+					}
 					saga.RecordCompletion(outcome.nodeID, nodeDefs[outcome.nodeID].Compensation)
 					statusSucceeded := engine.StatusSucceeded
 					mut := engine.StateMutation{

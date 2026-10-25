@@ -112,6 +112,8 @@ func (c *runNodeContext) Config() map[string]any          { return c.config }
 func (c *runNodeContext) Inputs() map[string]any          { return c.inputs }
 func (c *runNodeContext) State() *engine.GraphState       { return c.state }
 func (c *runNodeContext) Attempt() int                    { return 1 }
+func (c *runNodeContext) PolicyID() string                { return "" }
+func (c *runNodeContext) PolicyVersion() string           { return "" }
 
 // episode holds the mutable state of one RunEpisode call.
 type episode struct {

@@ -42,10 +42,16 @@ func (s *SequenceGenerator) Current() uint64 {
 
 // TransitionEmitter converts engine state transitions into ordered events.
 type TransitionEmitter struct {
-	execID engine.ExecutionID
-	clock  Clock
-	seqGen *SequenceGenerator
-	sink   engine.EventSink
+	execID         engine.ExecutionID
+	clock          Clock
+	seqGen         *SequenceGenerator
+	sink           engine.EventSink
+	policyResolver func(nodeID engine.NodeID) (string, string)
+}
+
+// SetPolicyResolver registers a resolver function that provides policy metadata for completed nodes.
+func (e *TransitionEmitter) SetPolicyResolver(resolver func(nodeID engine.NodeID) (string, string)) {
+	e.policyResolver = resolver
 }
 
 // NewTransitionEmitter creates a new TransitionEmitter.
@@ -118,10 +124,16 @@ func (e *TransitionEmitter) EmitTransition(
 
 	if oldStatus == engine.StatusRunning && newStatus == engine.StatusSucceeded {
 		eventType = engine.EventTypeNodeCompleted
+		var polID, polVer string
+		if e.policyResolver != nil {
+			polID, polVer = e.policyResolver(newState.NodeID())
+		}
 		payload = engine.NodeCompletedPayload{
-			Status:  engine.StatusSucceeded,
-			Output:  newState.Output(),
-			Version: newState.Version(),
+			Status:        engine.StatusSucceeded,
+			Output:        newState.Output(),
+			Version:       newState.Version(),
+			PolicyID:      polID,
+			PolicyVersion: polVer,
 		}
 	} else if oldStatus == engine.StatusRunning && newStatus == engine.StatusFailed {
 		eventType = engine.EventTypeNodeFailed

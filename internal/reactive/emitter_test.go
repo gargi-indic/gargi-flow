@@ -426,4 +426,51 @@ func TestEmitTransition_SinkError(t *testing.T) {
 	}
 }
 
+func TestEmitTransition_WithPolicyResolver(t *testing.T) {
+	ctx := context.Background()
+	execID := engine.ExecutionID("exec-policy-1")
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+	node1, _ := engine.NewNode("n1", "passthrough", nil)
+	graph, _ := engine.NewGraph("g1", []*engine.Node{node1}, nil)
+	gs, _ := engine.NewGraphState(execID, graph)
+
+	emitter := NewTransitionEmitter(execID, NewSequenceGenerator(0), clock, nil)
+	emitter.SetPolicyResolver(func(nodeID engine.NodeID) (string, string) {
+		if nodeID == "n1" {
+			return "policy-xyz", "v2.0"
+		}
+		return "", ""
+	})
+
+	// Transition n1 from Pending -> Ready -> Running -> Succeeded
+	mReady := engine.NewStateMutation("n1", gs.Version(), newStatusPtr(engine.StatusReady), nil, nil, nil)
+	gs, _ = gs.Apply(mReady)
+
+	mRunning := engine.NewStateMutation("n1", gs.Version(), newStatusPtr(engine.StatusRunning), nil, nil, nil)
+	gsRunning, _ := gs.Apply(mRunning)
+	_, _ = emitter.EmitTransition(ctx, gs.NodeState("n1"), gsRunning.NodeState("n1"), mRunning)
+
+	mSucc := engine.NewStateMutation("n1", gsRunning.Version(), newStatusPtr(engine.StatusSucceeded), map[string]any{"res": 1}, nil, nil)
+	gsSucc, _ := gsRunning.Apply(mSucc)
+
+	ev, err := emitter.EmitTransition(ctx, gsRunning.NodeState("n1"), gsSucc.NodeState("n1"), mSucc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ev.Type() != engine.EventTypeNodeCompleted {
+		t.Fatalf("expected node_completed, got %v", ev.Type())
+	}
+	payload, ok := ev.Payload().(engine.NodeCompletedPayload)
+	if !ok {
+		t.Fatalf("expected NodeCompletedPayload, got %T", ev.Payload())
+	}
+	if payload.PolicyID != "policy-xyz" {
+		t.Errorf("expected PolicyID 'policy-xyz', got %q", payload.PolicyID)
+	}
+	if payload.PolicyVersion != "v2.0" {
+		t.Errorf("expected PolicyVersion 'v2.0', got %q", payload.PolicyVersion)
+	}
+}
+
 func newStatusPtr(s engine.Status) *engine.Status { return &s }
