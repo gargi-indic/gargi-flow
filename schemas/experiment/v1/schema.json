@@ -30,8 +30,8 @@
       "properties": {
         "search": {
           "type": "string",
-          "enum": ["exhaustive", "exact", "grid", "random", "racing"],
-          "description": "exhaustive enumerates every reduced deterministic policy; exact solves each world's optimal table policy by backward induction over information sets (discrete, perfect-recall models); grid evaluates every combination of the params of policy; random evaluates samples random draws of them; racing evaluates candidate policies with successive halving and paired confidence intervals"
+          "enum": ["exhaustive", "exact", "grid", "random", "racing", "bayesian"],
+          "description": "exhaustive enumerates every reduced deterministic policy; exact solves each world's optimal table policy by backward induction over information sets (discrete, perfect-recall models); grid evaluates every combination of the params of policy; random evaluates samples random draws of them; racing evaluates candidate policies with successive halving and paired confidence intervals; bayesian uses TPE over continuous and integer params"
         },
         "files": {
           "type": "array",
@@ -71,6 +71,30 @@
           "exclusiveMinimum": 0,
           "maximum": 1,
           "description": "Significance level for paired difference confidence intervals in racing search"
+        },
+        "trials": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 20,
+          "description": "Total parameter configurations to evaluate in bayesian search"
+        },
+        "startup_trials": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5,
+          "description": "Initial random exploration trials in bayesian search"
+        },
+        "gamma": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1,
+          "default": 0.20,
+          "description": "Quantile threshold splitting good vs bad evaluations in bayesian search"
+        },
+        "racing": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, composes candidate evaluations with racing"
         },
         "candidates": {
           "type": "object",
@@ -119,7 +143,7 @@
         {
           "if": {
             "required": ["search"],
-            "properties": { "search": { "enum": ["grid", "random"] } }
+            "properties": { "search": { "enum": ["grid", "random", "bayesian"] } }
           },
           "then": { "required": ["policy"] }
         },
@@ -165,6 +189,23 @@
                 { "required": ["max_runs"] },
                 { "required": ["factor"] },
                 { "required": ["alpha"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "properties": { "search": { "const": "bayesian" } }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["trials"] },
+                { "required": ["startup_trials"] },
+                { "required": ["gamma"] },
+                { "required": ["racing"] }
               ]
             }
           }

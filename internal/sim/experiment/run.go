@@ -240,6 +240,12 @@ func Run(ctx context.Context, exp *CompiledExperiment, src PolicySource, opts Op
 	if racing, ok := src.(*RacingSource); ok {
 		return runRacing(ctx, exp, *racing, opts)
 	}
+	if bayesian, ok := src.(BayesianSource); ok {
+		return runBayesian(ctx, exp, bayesian, opts)
+	}
+	if bayesian, ok := src.(*BayesianSource); ok {
+		return runBayesian(ctx, exp, *bayesian, opts)
+	}
 
 	var (
 		policies []sim.Policy

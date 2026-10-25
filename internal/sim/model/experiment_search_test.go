@@ -24,12 +24,12 @@ func TestParseExperiment_Search(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 3, exp.MaxPolicies)
 
-	for _, search := range []string{"bayesian", "Exact", "backward_induction"} {
+	for _, search := range []string{"Exact", "backward_induction"} {
 		_, err := ParseExperiment(doc(search), engine.FormatYAML)
 		var ve *engine.ValidationErrors
 		require.ErrorAs(t, err, &ve, search)
 		require.Equal(t, []engine.ValidationIssue{
-			{Path: "$.policies.search", Code: engine.CodeInvalidValue, Message: "search must be exhaustive, exact, grid, random or racing"},
+			{Path: "$.policies.search", Code: engine.CodeInvalidValue, Message: "search must be exhaustive, exact, grid, random, racing or bayesian"},
 		}, ve.Issues(), search)
 	}
 }
