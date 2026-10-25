@@ -30,6 +30,7 @@ const (
 	SimulationService_GetReport_FullMethodName                = "/gargi.v1.SimulationService/GetReport"
 	SimulationService_GetRun_FullMethodName                   = "/gargi.v1.SimulationService/GetRun"
 	SimulationService_StreamExperimentProgress_FullMethodName = "/gargi.v1.SimulationService/StreamExperimentProgress"
+	SimulationService_IngestOutcome_FullMethodName            = "/gargi.v1.SimulationService/IngestOutcome"
 )
 
 // SimulationServiceClient is the client API for SimulationService service.
@@ -64,6 +65,8 @@ type SimulationServiceClient interface {
 	// finishes. Over REST, use the Server-Sent Events endpoint
 	// GET /v1/experiments/{id}/events.
 	StreamExperimentProgress(ctx context.Context, in *StreamExperimentProgressRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamExperimentProgressResponse], error)
+	// IngestOutcome reports real-world outcomes for an execution.
+	IngestOutcome(ctx context.Context, in *IngestOutcomeRequest, opts ...grpc.CallOption) (*IngestOutcomeResponse, error)
 }
 
 type simulationServiceClient struct {
@@ -193,6 +196,16 @@ func (c *simulationServiceClient) StreamExperimentProgress(ctx context.Context, 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type SimulationService_StreamExperimentProgressClient = grpc.ServerStreamingClient[StreamExperimentProgressResponse]
 
+func (c *simulationServiceClient) IngestOutcome(ctx context.Context, in *IngestOutcomeRequest, opts ...grpc.CallOption) (*IngestOutcomeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IngestOutcomeResponse)
+	err := c.cc.Invoke(ctx, SimulationService_IngestOutcome_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SimulationServiceServer is the server API for SimulationService service.
 // All implementations must embed UnimplementedSimulationServiceServer
 // for forward compatibility.
@@ -225,6 +238,8 @@ type SimulationServiceServer interface {
 	// finishes. Over REST, use the Server-Sent Events endpoint
 	// GET /v1/experiments/{id}/events.
 	StreamExperimentProgress(*StreamExperimentProgressRequest, grpc.ServerStreamingServer[StreamExperimentProgressResponse]) error
+	// IngestOutcome reports real-world outcomes for an execution.
+	IngestOutcome(context.Context, *IngestOutcomeRequest) (*IngestOutcomeResponse, error)
 	mustEmbedUnimplementedSimulationServiceServer()
 }
 
@@ -267,6 +282,9 @@ func (UnimplementedSimulationServiceServer) GetRun(context.Context, *GetRunReque
 }
 func (UnimplementedSimulationServiceServer) StreamExperimentProgress(*StreamExperimentProgressRequest, grpc.ServerStreamingServer[StreamExperimentProgressResponse]) error {
 	return status.Error(codes.Unimplemented, "method StreamExperimentProgress not implemented")
+}
+func (UnimplementedSimulationServiceServer) IngestOutcome(context.Context, *IngestOutcomeRequest) (*IngestOutcomeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method IngestOutcome not implemented")
 }
 func (UnimplementedSimulationServiceServer) mustEmbedUnimplementedSimulationServiceServer() {}
 func (UnimplementedSimulationServiceServer) testEmbeddedByValue()                           {}
@@ -480,6 +498,24 @@ func _SimulationService_StreamExperimentProgress_Handler(srv interface{}, stream
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type SimulationService_StreamExperimentProgressServer = grpc.ServerStreamingServer[StreamExperimentProgressResponse]
 
+func _SimulationService_IngestOutcome_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IngestOutcomeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SimulationServiceServer).IngestOutcome(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SimulationService_IngestOutcome_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SimulationServiceServer).IngestOutcome(ctx, req.(*IngestOutcomeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SimulationService_ServiceDesc is the grpc.ServiceDesc for SimulationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -526,6 +562,10 @@ var SimulationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRun",
 			Handler:    _SimulationService_GetRun_Handler,
+		},
+		{
+			MethodName: "IngestOutcome",
+			Handler:    _SimulationService_IngestOutcome_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

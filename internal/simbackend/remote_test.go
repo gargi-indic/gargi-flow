@@ -14,22 +14,24 @@ import (
 	"github.com/gargi-indic/gargi-flow/internal/sim/jobs"
 	"github.com/gargi-indic/gargi-flow/internal/simbackend"
 	"github.com/gargi-indic/gargi-flow/internal/store/memory"
+	"github.com/gargi-indic/gargi-flow/pkg/engine"
 	"github.com/gargi-indic/gargi-flow/pkg/sim"
 	"github.com/stretchr/testify/require"
 )
 
-// newRemote starts an in-process gargi server (memory store, jobs runner,
-// REST + SSE) and returns a Remote for it. One server per test.
-func newRemote(t *testing.T) *simbackend.Remote {
+// newRemoteWithStores starts an in-process gargi server (memory store, jobs runner,
+// REST + SSE) and returns a Remote for it alongside the underlying stores.
+func newRemoteWithStores(t *testing.T) (*simbackend.Remote, sim.ExperimentStore, engine.StateStore) {
 	t.Helper()
 	reg, err := jobs.NewRegistry()
 	require.NoError(t, err)
 	st := memory.NewExperimentStore()
 	runner, err := jobs.New(st, reg, jobs.Options{RunWorkers: 2, Now: time.Now})
 	require.NoError(t, err)
-	svc := api.NewSimulationServer(st, runner, reg, nil)
+	memStore := memory.NewStore()
+	svc := api.NewSimulationServer(st, runner, reg, nil, api.WithStateStore(memStore))
 
-	execService := api.NewServer(nil, config.TemporalConfig{TaskQueue: "test-queue"}, memory.NewStore(), nil)
+	execService := api.NewServer(nil, config.TemporalConfig{TaskQueue: "test-queue"}, memStore, nil)
 	httpServer, err := api.NewHTTPServer(context.Background(), execService, ":0", nil, nil, api.WithSimulationService(svc))
 	require.NoError(t, err)
 	ts := httptest.NewServer(httpServer.Handler())
@@ -42,7 +44,14 @@ func newRemote(t *testing.T) *simbackend.Remote {
 	})
 	remote, err := simbackend.NewRemote(ts.URL, ts.Client())
 	require.NoError(t, err)
-	return remote
+	return remote, st, memStore
+}
+
+// newRemote starts an in-process gargi server (memory store, jobs runner,
+// REST + SSE) and returns a Remote for it. One server per test.
+func newRemote(t *testing.T) *simbackend.Remote {
+	r, _, _ := newRemoteWithStores(t)
+	return r
 }
 
 func testdata(name string) string { return filepath.Join("testdata", name) }
@@ -231,4 +240,45 @@ func TestRemote_RunBundle(t *testing.T) {
 	require.InDelta(t, 460.0, res.Report.Worlds[0].Policies[0].Objective.Mean, 1e-9)
 	require.Equal(t, sim.WorldID("recession"), res.Report.Worlds[1].World)
 	require.InDelta(t, 202.525, res.Report.Worlds[1].Policies[0].Objective.Mean, 1e-9)
+}
+
+func TestRemote_IngestOutcome(t *testing.T) {
+	r, simStore, stateStore := newRemoteWithStores(t)
+	ctx := context.Background()
+
+	// Missing execution ID
+	err := r.IngestOutcome(ctx, simbackend.OutcomeRequest{})
+	require.Error(t, err)
+
+	// Non-existent execution
+	err = r.IngestOutcome(ctx, simbackend.OutcomeRequest{
+		ExecutionID: "exec-does-not-exist",
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, simbackend.ErrNotFound)
+
+	// Create an execution in stateStore
+	g, err := engine.NewGraph("graph-test", nil, nil)
+	require.NoError(t, err)
+	st, err := engine.NewGraphState(engine.ExecutionID("exec-remote-1"), g)
+	require.NoError(t, err)
+	require.NoError(t, stateStore.SetState(ctx, "exec-remote-1", st, 0))
+
+	// Ingest outcome for this execution
+	obsAt := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	err = r.IngestOutcome(ctx, simbackend.OutcomeRequest{
+		ExecutionID: "exec-remote-1",
+		Latents:     map[string]any{"default": 1.0, "loss": 250.0},
+		ObservedAt:  obsAt,
+	})
+	require.NoError(t, err)
+
+	// Verify outcome is stored in simStore
+	outcomes, err := simStore.ListOutcomes(ctx, sim.OutcomeQueryOptions{GraphID: "graph-test"})
+	require.NoError(t, err)
+	require.Len(t, outcomes, 1)
+	require.Equal(t, "exec-remote-1", outcomes[0].ExecutionID)
+	require.Equal(t, "graph-test", outcomes[0].GraphID)
+	require.Equal(t, "1", outcomes[0].PolicyVersion)
+	require.Equal(t, 1.0, outcomes[0].Latents["default"])
 }

@@ -251,14 +251,15 @@ func TestMigrations_SimulationDown(t *testing.T) {
 	}
 	ver, dirty, err := st.MigrationVersion(ctx)
 	require.NoError(t, err)
-	require.Equal(t, int64(3), ver)
+	require.Equal(t, int64(4), ver)
 	require.False(t, dirty)
-	simTables := []string{"sim_models", "sim_model_policies", "sim_experiments", "sim_reports"}
+	simTables := []string{"sim_models", "sim_model_policies", "sim_experiments", "sim_reports", "sim_outcomes"}
 	for _, name := range simTables {
 		require.True(t, tableExists(name), name)
 	}
 
-	// Migrate down twice since we are at version 3
+	// Migrate down 3 times since we are at version 4 (to version 1)
+	require.NoError(t, st.MigrateDown(ctx, false))
 	require.NoError(t, st.MigrateDown(ctx, false))
 	require.NoError(t, st.MigrateDown(ctx, false))
 	ver, _, err = st.MigrationVersion(ctx)
@@ -272,7 +273,7 @@ func TestMigrations_SimulationDown(t *testing.T) {
 	require.NoError(t, st.MigrateUp(ctx))
 	ver, _, err = st.MigrationVersion(ctx)
 	require.NoError(t, err)
-	require.Equal(t, int64(3), ver)
+	require.Equal(t, int64(4), ver)
 	for _, name := range simTables {
 		assert.True(t, tableExists(name), name)
 	}
@@ -316,5 +317,5 @@ func TestMigrations_ConcurrentUp(t *testing.T) {
 	}
 	var count int
 	require.NoError(t, admin.Pool().QueryRow(ctx, fmt.Sprintf("SELECT count(*) FROM %s.schema_migrations WHERE NOT dirty", schema)).Scan(&count))
-	require.Equal(t, 3, count)
+	require.Equal(t, 4, count)
 }

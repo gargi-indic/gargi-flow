@@ -575,3 +575,90 @@ ON CONFLICT (experiment_id) DO UPDATE SET report = EXCLUDED.report
 	}
 	return work, nil
 }
+
+// IngestOutcome implements sim.ExperimentStore.
+func (e *ExperimentStore) IngestOutcome(ctx context.Context, rec sim.OutcomeRecord) error {
+	if err := e.check(ctx); err != nil {
+		return err
+	}
+	if rec.ExecutionID == "" {
+		return errors.New("postgres: execution id is required")
+	}
+
+	data, err := json.Marshal(rec.Latents)
+	if err != nil {
+		return fmt.Errorf("marshaling outcome latents: %w", err)
+	}
+
+	query := `
+		INSERT INTO sim_outcomes (execution_id, graph_id, policy_version, latents, observed_at)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (execution_id) DO UPDATE SET
+			graph_id = EXCLUDED.graph_id,
+			policy_version = EXCLUDED.policy_version,
+			latents = EXCLUDED.latents,
+			observed_at = EXCLUDED.observed_at
+	`
+
+	_, err = e.st.pool.Exec(ctx, query,
+		rec.ExecutionID,
+		rec.GraphID,
+		rec.PolicyVersion,
+		data,
+		rec.ObservedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("ingesting outcome: %w", err)
+	}
+	return nil
+}
+
+// ListOutcomes implements sim.ExperimentStore.
+func (e *ExperimentStore) ListOutcomes(ctx context.Context, opts sim.OutcomeQueryOptions) ([]sim.OutcomeRecord, error) {
+	if err := e.check(ctx); err != nil {
+		return nil, err
+	}
+
+	var conditions []string
+	var args []any
+	argID := 1
+
+	if opts.GraphID != "" {
+		conditions = append(conditions, fmt.Sprintf("graph_id = $%d", argID))
+		args = append(args, opts.GraphID)
+		argID++
+	}
+	if opts.PolicyVersion != "" {
+		conditions = append(conditions, fmt.Sprintf("policy_version = $%d", argID))
+		args = append(args, opts.PolicyVersion)
+	}
+
+	query := `
+		SELECT execution_id, graph_id, policy_version, latents, observed_at
+		FROM sim_outcomes
+	`
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY observed_at ASC, execution_id ASC"
+
+	rows, err := e.st.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("querying outcomes: %w", err)
+	}
+	defer rows.Close()
+
+	var out []sim.OutcomeRecord
+	for rows.Next() {
+		var rec sim.OutcomeRecord
+		var data []byte
+		if err := rows.Scan(&rec.ExecutionID, &rec.GraphID, &rec.PolicyVersion, &data, &rec.ObservedAt); err != nil {
+			return nil, fmt.Errorf("scanning outcome: %w", err)
+		}
+		if err := json.Unmarshal(data, &rec.Latents); err != nil {
+			return nil, fmt.Errorf("unmarshaling outcome latents: %w", err)
+		}
+		out = append(out, rec)
+	}
+	return out, rows.Err()
+}

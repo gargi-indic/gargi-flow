@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gargi-indic/gargi-flow/internal/nodes"
 	"github.com/gargi-indic/gargi-flow/internal/sim/experiment"
@@ -19,19 +20,52 @@ import (
 	"github.com/gargi-indic/gargi-flow/pkg/sim"
 )
 
-// Local is a Backend that runs everything in-process. It keeps no state and
-// no experiment store.
+// Local is a Backend that runs everything in-process. It can optionally persist
+// outcomes and policies in-memory or via injected stores.
 type Local struct {
-	store engine.PolicyStore
+	store      engine.PolicyStore
+	expStore   sim.ExperimentStore
+	stateStore engine.StateStore
 }
 
 var _ Backend = (*Local)(nil)
 
 // NewLocal returns an in-process Backend.
-func NewLocal() *Local { return &Local{store: memory.NewPolicyStore()} }
+func NewLocal() *Local {
+	ps := memory.NewPolicyStore()
+	es := memory.NewExperimentStore()
+	return &Local{store: ps, expStore: es}
+}
 
 // NewLocalWithStore returns an in-process Backend with the given policy store.
-func NewLocalWithStore(store engine.PolicyStore) *Local { return &Local{store: store} }
+func NewLocalWithStore(store engine.PolicyStore) *Local {
+	var expStore sim.ExperimentStore
+	if es, ok := store.(sim.ExperimentStore); ok {
+		expStore = es
+	} else {
+		expStore = memory.NewExperimentStore()
+	}
+	var stateStore engine.StateStore
+	if ss, ok := store.(engine.StateStore); ok {
+		stateStore = ss
+	}
+	return &Local{store: store, expStore: expStore, stateStore: stateStore}
+}
+
+// SetStateStore sets an optional engine.StateStore for resolving execution state.
+func (l *Local) SetStateStore(stateStore engine.StateStore) {
+	l.stateStore = stateStore
+}
+
+// SetExperimentStore sets an optional sim.ExperimentStore.
+func (l *Local) SetExperimentStore(expStore sim.ExperimentStore) {
+	l.expStore = expStore
+}
+
+// ExperimentStore returns the underlying experiment store.
+func (l *Local) ExperimentStore() sim.ExperimentStore {
+	return l.expStore
+}
 
 // PolicyStore returns the underlying policy store.
 func (l *Local) PolicyStore() engine.PolicyStore { return l.store }
@@ -286,4 +320,57 @@ func (l *Local) DeployPolicy(ctx context.Context, ref string, mode string) (*Dep
 		Version: rec.Version,
 		Mode:    mode,
 	}, nil
+}
+
+// IngestOutcome reports real-world outcomes for an execution.
+func (l *Local) IngestOutcome(ctx context.Context, req OutcomeRequest) error {
+	if req.ExecutionID == "" {
+		return errors.New("execution_id is required")
+	}
+	if l.expStore == nil {
+		return fmt.Errorf("ingest outcome: local backend keeps no experiment store: %w", ErrUnsupported)
+	}
+	graphID := "default"
+	policyVersion := "1"
+	if l.stateStore != nil {
+		st, err := l.stateStore.GetState(ctx, engine.ExecutionID(req.ExecutionID))
+		if err != nil {
+			if engine.IsStoreNotFound(err) {
+				return fmt.Errorf("%w: execution %q not found", ErrNotFound, req.ExecutionID)
+			}
+			return err
+		}
+		if st.GraphID() != "" {
+			graphID = st.GraphID()
+		}
+		for _, ns := range st.NodeStates() {
+			if ns == nil {
+				continue
+			}
+			out := ns.Output()
+			if v, ok := out["policy_version"].(string); ok && v != "" {
+				policyVersion = v
+				break
+			} else if v, ok := out["policyVersion"].(string); ok && v != "" {
+				policyVersion = v
+				break
+			}
+		}
+		if policyVersion == "1" && l.store != nil {
+			if dep, err := l.store.GetDeployment(ctx, graphID); err == nil && dep != nil {
+				policyVersion = dep.PolicyVersion
+			}
+		}
+	}
+	obsAt := req.ObservedAt
+	if obsAt.IsZero() {
+		obsAt = time.Now().UTC()
+	}
+	return l.expStore.IngestOutcome(ctx, sim.OutcomeRecord{
+		ExecutionID:   req.ExecutionID,
+		GraphID:       graphID,
+		PolicyVersion: policyVersion,
+		Latents:       req.Latents,
+		ObservedAt:    obsAt,
+	})
 }

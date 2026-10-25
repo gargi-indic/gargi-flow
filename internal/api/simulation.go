@@ -42,25 +42,42 @@ type SimulationServer struct {
 	registry     *engine.Registry
 	logger       *slog.Logger
 	pollInterval time.Duration
+	stateStore   engine.StateStore
 }
 
 var _ gargiv1.SimulationServiceServer = (*SimulationServer)(nil)
+
+// SimulationOption configures optional behaviors of SimulationServer.
+type SimulationOption func(*SimulationServer)
+
+// WithStateStore provides an engine.StateStore to SimulationServer for resolving execution state.
+func WithStateStore(store engine.StateStore) SimulationOption {
+	return func(s *SimulationServer) {
+		s.stateStore = store
+	}
+}
 
 // NewSimulationServer returns a SimulationService implementation. store
 // persists models and experiments, runner executes experiments submitted to
 // it (it must use the same store), and reg compiles models (see
 // jobs.NewRegistry).
-func NewSimulationServer(store sim.ExperimentStore, runner *jobs.Runner, reg *engine.Registry, logger *slog.Logger) *SimulationServer {
+func NewSimulationServer(store sim.ExperimentStore, runner *jobs.Runner, reg *engine.Registry, logger *slog.Logger, opts ...SimulationOption) *SimulationServer {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &SimulationServer{
+	s := &SimulationServer{
 		store:        store,
 		runner:       runner,
 		registry:     reg,
 		logger:       logger,
 		pollInterval: DefaultExperimentPollInterval,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(s)
+		}
+	}
+	return s
 }
 
 // toPBIssues converts validation errors to their proto form.
@@ -706,4 +723,98 @@ func toPBRunRecord(r sim.RunRecord) *gargiv1.RunRecord {
 		}
 	}
 	return out
+}
+
+// IngestOutcome reports real-world outcomes for an execution.
+func (s *SimulationServer) IngestOutcome(ctx context.Context, req *gargiv1.IngestOutcomeRequest) (*gargiv1.IngestOutcomeResponse, error) {
+	if req == nil || strings.TrimSpace(req.GetExecutionId()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "execution_id is required")
+	}
+
+	execID := req.GetExecutionId()
+	stateStore := s.stateStore
+	if stateStore == nil {
+		if ss, ok := s.store.(engine.StateStore); ok {
+			stateStore = ss
+		}
+	}
+
+	if stateStore == nil {
+		return nil, status.Errorf(codes.NotFound, "execution %q not found: state store unavailable", execID)
+	}
+
+	execState, err := stateStore.GetState(ctx, engine.ExecutionID(execID))
+	if err != nil {
+		if engine.IsStoreNotFound(err) || errors.Is(err, engine.ErrStoreNotFound) {
+			return nil, status.Errorf(codes.NotFound, "execution %q not found", execID)
+		}
+		return nil, status.Errorf(codes.Internal, "lookup execution %q: %v", execID, err)
+	}
+
+	graphID := execState.GraphID()
+	if graphID == "" {
+		graphID = defaultGraphID
+	}
+
+	var policyVersion string
+
+	for _, ns := range execState.NodeStates() {
+		if ns == nil {
+			continue
+		}
+		out := ns.Output()
+		if v, ok := out["policy_version"].(string); ok && v != "" {
+			policyVersion = v
+			break
+		} else if v, ok := out["policyVersion"].(string); ok && v != "" {
+			policyVersion = v
+			break
+		}
+	}
+
+	if policyVersion == "" {
+		var ps engine.PolicyStore
+		if p, ok := s.store.(engine.PolicyStore); ok && p != nil {
+			ps = p
+		} else if p, ok := stateStore.(engine.PolicyStore); ok && p != nil {
+			ps = p
+		}
+		if ps != nil {
+			if dep, err := ps.GetDeployment(ctx, graphID); err == nil && dep != nil {
+				policyVersion = dep.PolicyVersion
+			}
+		}
+	}
+
+	if policyVersion == "" {
+		policyVersion = "1"
+	}
+
+	var latents map[string]any
+	if req.GetLatents() != nil {
+		latents = req.GetLatents().AsMap()
+	} else {
+		latents = make(map[string]any)
+	}
+
+	var observedAt time.Time
+	if req.GetObservedAt() != nil && !req.GetObservedAt().AsTime().IsZero() {
+		observedAt = req.GetObservedAt().AsTime()
+	} else {
+		observedAt = time.Now().UTC()
+	}
+
+	rec := sim.OutcomeRecord{
+		ExecutionID:   execID,
+		GraphID:       graphID,
+		PolicyVersion: policyVersion,
+		Latents:       latents,
+		ObservedAt:    observedAt,
+	}
+
+	if err := s.store.IngestOutcome(ctx, rec); err != nil {
+		return nil, status.Errorf(codes.Internal, "ingesting outcome: %v", err)
+	}
+
+	return &gargiv1.IngestOutcomeResponse{}, nil
 }

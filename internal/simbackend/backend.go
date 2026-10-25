@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"sort"
+	"time"
 
 	"github.com/gargi-indic/gargi-flow/internal/sim/experiment"
 	"github.com/gargi-indic/gargi-flow/pkg/engine"
@@ -39,6 +40,15 @@ type Backend interface {
 	Cancel(ctx context.Context, experimentID string) error
 	// DeployPolicy sets the deployment mode of a policy version.
 	DeployPolicy(ctx context.Context, ref string, mode string) (*DeployResult, error)
+	// IngestOutcome reports real-world outcomes for an execution.
+	IngestOutcome(ctx context.Context, req OutcomeRequest) error
+}
+
+// OutcomeRequest specifies an outcome to ingest.
+type OutcomeRequest struct {
+	ExecutionID string         `json:"execution_id"`
+	Latents     map[string]any `json:"latents"`
+	ObservedAt  time.Time      `json:"observed_at,omitempty"`
 }
 
 // DeployResult holds the outcome of DeployPolicy.

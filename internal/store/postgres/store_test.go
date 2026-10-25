@@ -151,7 +151,7 @@ func TestMigrations_UpDown(t *testing.T) {
 
 	ver, dirty, err = store.MigrationVersion(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), ver)
+	assert.Equal(t, int64(4), ver)
 	assert.False(t, dirty)
 
 	// Verify executions table exists
@@ -180,7 +180,7 @@ func TestMigrations_UpDown(t *testing.T) {
 
 	ver, dirty, err = store.MigrationVersion(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), ver)
+	assert.Equal(t, int64(4), ver)
 	assert.False(t, dirty)
 }
 

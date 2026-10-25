@@ -95,7 +95,7 @@ func TestFactory_PostgresExperiments(t *testing.T) {
 		// The factory applied the simulation migration.
 		ver, dirty, err := state.MigrationVersion(ctx)
 		require.NoError(t, err)
-		require.Equal(t, int64(3), ver)
+		require.Equal(t, int64(4), ver)
 		require.False(t, dirty)
 
 		saved, err := exps.SaveModel(ctx, sim.ModelBundle{ID: "m", Format: "yaml"})

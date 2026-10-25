@@ -228,6 +228,71 @@ seed: 42
 	require.Equal(t, "live", deployRes.Mode)
 }
 
+func TestExperiments_IngestOutcome(t *testing.T) {
+	s := newWorkspaceSession(t)
+
+	// Ingest outcome success
+	var ingestRes struct {
+		Status      string `json:"status"`
+		ExecutionID string `json:"execution_id"`
+		Message     string `json:"message"`
+	}
+	isErr := call(t, s, "ingest_outcome", m{
+		"execution_id": "exec-outcome-1",
+		"latents": map[string]any{
+			"default": 1.0,
+			"loss":    5000.0,
+		},
+		"observed_at": "2026-10-25T15:30:00Z",
+	}, &ingestRes)
+	require.False(t, isErr)
+	require.Equal(t, "ok", ingestRes.Status)
+	require.Equal(t, "exec-outcome-1", ingestRes.ExecutionID)
+
+	// Ingest outcome without observed_at (defaults to now)
+	isErr = call(t, s, "ingest_outcome", m{
+		"execution_id": "exec-outcome-2",
+		"latents": map[string]any{
+			"default": 0.0,
+		},
+	}, &ingestRes)
+	require.False(t, isErr)
+	require.Equal(t, "ok", ingestRes.Status)
+	require.Equal(t, "exec-outcome-2", ingestRes.ExecutionID)
+
+	// Ingest outcome with empty execution_id should return tool error
+	var errRes struct {
+		Errors []struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	isErr = call(t, s, "ingest_outcome", m{
+		"execution_id": "",
+		"latents":      map[string]any{"default": 1.0},
+	}, &errRes)
+	require.True(t, isErr)
+	require.NotEmpty(t, errRes.Errors)
+	require.Contains(t, errRes.Errors[0].Message, "execution_id is required")
+
+	// Ingest outcome with missing execution_id in args fails schema validation
+	res, err := s.CallTool(context.Background(), &sdk_mcp.CallToolParams{
+		Name:      "ingest_outcome",
+		Arguments: m{"latents": map[string]any{"default": 1.0}},
+	})
+	require.NoError(t, err)
+	require.True(t, res.IsError)
+
+	// Ingest outcome with invalid observed_at timestamp
+	isErr = call(t, s, "ingest_outcome", m{
+		"execution_id": "exec-invalid-time",
+		"latents":      map[string]any{},
+		"observed_at":  "invalid-date-format",
+	}, &errRes)
+	require.True(t, isErr)
+	require.NotEmpty(t, errRes.Errors)
+}
+
 func TestPrompts_ModelThisDecision(t *testing.T) {
 	s := newWorkspaceSession(t)
 	res, err := s.GetPrompt(context.Background(), &sdk_mcp.GetPromptParams{

@@ -20,6 +20,7 @@ import (
 	"github.com/gargi-indic/gargi-flow/internal/config"
 	"github.com/gargi-indic/gargi-flow/internal/sim/jobs"
 	"github.com/gargi-indic/gargi-flow/internal/store/memory"
+	"github.com/gargi-indic/gargi-flow/pkg/engine"
 	"github.com/gargi-indic/gargi-flow/pkg/sim"
 	"github.com/stretchr/testify/require"
 )
@@ -67,11 +68,12 @@ top: 1
 `
 
 type simEnv struct {
-	t      *testing.T
-	ts     *httptest.Server
-	store  *memory.ExperimentStore
-	runner *jobs.Runner
-	svc    *api.SimulationServer
+	t          *testing.T
+	ts         *httptest.Server
+	store      *memory.ExperimentStore
+	stateStore *memory.Store
+	runner     *jobs.Runner
+	svc        *api.SimulationServer
 }
 
 func newSimEnv(t *testing.T, opts jobs.Options) *simEnv {
@@ -87,9 +89,10 @@ func newSimEnv(t *testing.T, opts jobs.Options) *simEnv {
 	}
 	runner, err := jobs.New(st, reg, opts)
 	require.NoError(t, err)
-	svc := api.NewSimulationServer(st, runner, reg, nil)
+	memStore := memory.NewStore()
+	svc := api.NewSimulationServer(st, runner, reg, nil, api.WithStateStore(memStore))
 
-	execService := api.NewServer(nil, config.TemporalConfig{TaskQueue: "test-queue"}, memory.NewStore(), nil)
+	execService := api.NewServer(nil, config.TemporalConfig{TaskQueue: "test-queue"}, memStore, nil)
 	httpServer, err := api.NewHTTPServer(context.Background(), execService, ":0", nil, nil, api.WithSimulationService(svc))
 	require.NoError(t, err)
 	ts := httptest.NewServer(httpServer.Handler())
@@ -100,7 +103,7 @@ func newSimEnv(t *testing.T, opts jobs.Options) *simEnv {
 		defer cancel()
 		_ = runner.Close(ctx)
 	})
-	return &simEnv{t: t, ts: ts, store: st, runner: runner, svc: svc}
+	return &simEnv{t: t, ts: ts, store: st, stateStore: memStore, runner: runner, svc: svc}
 }
 
 // do sends a JSON request and returns the status code and decoded body.
@@ -648,4 +651,52 @@ func TestSimulationHTTP_DeployPolicy(t *testing.T) {
 		"mode": "shadow",
 	})
 	require.Equal(t, http.StatusNotFound, status, "%v", body)
+}
+
+func TestSimulationREST_IngestOutcome(t *testing.T) {
+	env := newSimEnv(t, jobs.Options{})
+	ctx := context.Background()
+
+	// 1. Missing execution_id
+	status, errBody := env.do(http.MethodPost, "/v1/outcomes", map[string]any{
+		"latents": map[string]any{"default": 1.0},
+	})
+	require.Equal(t, http.StatusBadRequest, status)
+	require.Contains(t, errBody["message"], "execution_id is required")
+
+	// 2. Execution not found
+	status, _ = env.do(http.MethodPost, "/v1/outcomes", map[string]any{
+		"execution_id": "non-existent-exec",
+		"latents":      map[string]any{"default": 1.0},
+	})
+	require.Equal(t, http.StatusNotFound, status)
+
+	// 3. Create execution in stateStore
+	g, err := engine.NewGraph("graph-underwrite", nil, nil)
+	require.NoError(t, err)
+	st, err := engine.NewGraphState(engine.ExecutionID("exec-http-1"), g)
+	require.NoError(t, err)
+	require.NoError(t, env.stateStore.SetState(ctx, "exec-http-1", st, 0))
+
+	// 4. Ingest outcome
+	status, body := env.do(http.MethodPost, "/v1/outcomes", map[string]any{
+		"execution_id": "exec-http-1",
+		"latents": map[string]any{
+			"default": 1.0,
+			"loss":    3000.5,
+		},
+		"observed_at": "2026-10-25T14:00:00Z",
+	})
+	require.Equal(t, http.StatusOK, status)
+	require.NotNil(t, body)
+
+	// 5. Verify outcome in experiment store
+	outcomes, err := env.store.ListOutcomes(ctx, sim.OutcomeQueryOptions{GraphID: "graph-underwrite", PolicyVersion: "1"})
+	require.NoError(t, err)
+	require.Len(t, outcomes, 1)
+	require.Equal(t, "exec-http-1", outcomes[0].ExecutionID)
+	require.Equal(t, "graph-underwrite", outcomes[0].GraphID)
+	require.Equal(t, "1", outcomes[0].PolicyVersion)
+	require.Equal(t, 1.0, outcomes[0].Latents["default"])
+	require.Equal(t, 3000.5, outcomes[0].Latents["loss"])
 }

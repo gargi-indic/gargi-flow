@@ -46,6 +46,7 @@ func RunExperimentStore(t *testing.T, factory ExperimentStoreFactory) {
 		{"ListExperimentsPaging", testListExperimentsPaging},
 		{"ListExperimentsTies", testListExperimentsTies},
 		{"ListExperimentsInvalidToken", testListExperimentsInvalidToken},
+		{"IngestAndListOutcomes", testIngestAndListOutcomes},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -516,5 +517,100 @@ func testListExperimentsInvalidToken(t *testing.T, s sim.ExperimentStore) {
 	_, _, err := s.ListExperiments(context.Background(), sim.ListExperimentsOptions{PageToken: "no-such-token"})
 	if !errors.Is(err, sim.ErrInvalidPageToken) {
 		t.Fatalf("ListExperiments with an unknown token error = %v, want sim.ErrInvalidPageToken", err)
+	}
+}
+
+func testIngestAndListOutcomes(t *testing.T, s sim.ExperimentStore) {
+	ctx := context.Background()
+	t1 := time.Date(2026, 10, 25, 10, 0, 0, 0, time.UTC)
+	t2 := time.Date(2026, 10, 25, 11, 0, 0, 0, time.UTC)
+	t3 := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	t4 := time.Date(2026, 10, 25, 13, 0, 0, 0, time.UTC)
+
+	o1 := sim.OutcomeRecord{
+		ExecutionID:   "exec-1",
+		GraphID:       "graph-A",
+		PolicyVersion: "v1",
+		Latents:       map[string]any{"default": 1.0, "reason": "loss"},
+		ObservedAt:    t1,
+	}
+	o2 := sim.OutcomeRecord{
+		ExecutionID:   "exec-2",
+		GraphID:       "graph-A",
+		PolicyVersion: "v1",
+		Latents:       map[string]any{"default": 0.0},
+		ObservedAt:    t2,
+	}
+	o3 := sim.OutcomeRecord{
+		ExecutionID:   "exec-3",
+		GraphID:       "graph-A",
+		PolicyVersion: "v2",
+		Latents:       map[string]any{"default": 0.5},
+		ObservedAt:    t3,
+	}
+	o4 := sim.OutcomeRecord{
+		ExecutionID:   "exec-4",
+		GraphID:       "graph-B",
+		PolicyVersion: "v1",
+		Latents:       map[string]any{"score": 95.0},
+		ObservedAt:    t4,
+	}
+
+	for _, o := range []sim.OutcomeRecord{o1, o2, o3, o4} {
+		if err := s.IngestOutcome(ctx, o); err != nil {
+			t.Fatalf("IngestOutcome(%s): %v", o.ExecutionID, err)
+		}
+	}
+
+	// Idempotent re-ingest
+	if err := s.IngestOutcome(ctx, o1); err != nil {
+		t.Fatalf("re-ingest o1: %v", err)
+	}
+
+	// Empty execution ID should fail
+	if err := s.IngestOutcome(ctx, sim.OutcomeRecord{}); err == nil {
+		t.Fatal("IngestOutcome with empty ExecutionID should error")
+	}
+
+	// Query graph-A and v1
+	resA1, err := s.ListOutcomes(ctx, sim.OutcomeQueryOptions{GraphID: "graph-A", PolicyVersion: "v1"})
+	if err != nil {
+		t.Fatalf("ListOutcomes(graph-A, v1): %v", err)
+	}
+	if len(resA1) != 2 {
+		t.Fatalf("expected 2 outcomes for graph-A v1, got %d", len(resA1))
+	}
+	if resA1[0].ExecutionID != "exec-1" || resA1[1].ExecutionID != "exec-2" {
+		t.Errorf("unexpected exec IDs: %s, %s", resA1[0].ExecutionID, resA1[1].ExecutionID)
+	}
+	if resA1[0].Latents["reason"] != "loss" {
+		t.Errorf("latents round-trip failed: got %v", resA1[0].Latents)
+	}
+
+	// Query graph-A and v2
+	resA2, err := s.ListOutcomes(ctx, sim.OutcomeQueryOptions{GraphID: "graph-A", PolicyVersion: "v2"})
+	if err != nil {
+		t.Fatalf("ListOutcomes(graph-A, v2): %v", err)
+	}
+	if len(resA2) != 1 || resA2[0].ExecutionID != "exec-3" {
+		t.Fatalf("expected [exec-3], got %v", resA2)
+	}
+
+	// Query graph-B and v1
+	resB1, err := s.ListOutcomes(ctx, sim.OutcomeQueryOptions{GraphID: "graph-B", PolicyVersion: "v1"})
+	if err != nil {
+		t.Fatalf("ListOutcomes(graph-B, v1): %v", err)
+	}
+	if len(resB1) != 1 || resB1[0].ExecutionID != "exec-4" {
+		t.Fatalf("expected [exec-4], got %v", resB1)
+	}
+
+	// Query graph-A (all versions)
+	resAAll, err := s.ListOutcomes(ctx, sim.OutcomeQueryOptions{GraphID: "graph-A"})
+	if err != nil {
+		t.Fatalf("ListOutcomes(graph-A): %v", err)
+	}
+	if len(resAAll) != 3 {
+		t.Fatalf("expected 3 outcomes for graph-A, got %d", len(resAAll))
 	}
 }

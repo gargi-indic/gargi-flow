@@ -686,6 +686,40 @@
         ]
       }
     },
+    "/v1/outcomes": {
+      "post": {
+        "summary": "IngestOutcome reports real-world outcomes for an execution.",
+        "operationId": "SimulationService_IngestOutcome",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1IngestOutcomeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "IngestOutcomeRequest reports real-world outcomes for an execution.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1IngestOutcomeRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SimulationService"
+        ]
+      }
+    },
     "/v1/policies/{id}:deploy": {
       "post": {
         "summary": "DeployPolicy sets the deployment mode of a policy.",
@@ -1128,6 +1162,26 @@
         }
       },
       "description": "GetRunResponse is one replayed run as the engine event stream a production\nexecution would emit (virtual-clock timestamps from 1970-01-01T00:00:00Z)."
+    },
+    "v1IngestOutcomeRequest": {
+      "type": "object",
+      "properties": {
+        "executionId": {
+          "type": "string"
+        },
+        "latents": {
+          "type": "object"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "IngestOutcomeRequest reports real-world outcomes for an execution."
+    },
+    "v1IngestOutcomeResponse": {
+      "type": "object",
+      "description": "IngestOutcomeResponse is the response to IngestOutcome."
     },
     "v1ListExecutionsResponse": {
       "type": "object",

@@ -294,6 +294,16 @@ message StreamExperimentProgressResponse {
   string error = 7;
 }
 
+// IngestOutcomeRequest reports real-world outcomes for an execution.
+message IngestOutcomeRequest {
+  string execution_id = 1;
+  google.protobuf.Struct latents = 2;
+  google.protobuf.Timestamp observed_at = 3;
+}
+
+// IngestOutcomeResponse is the response to IngestOutcome.
+message IngestOutcomeResponse {}
+
 // SimulationService exposes simulation models and experiments over gRPC and
 // REST.
 service SimulationService {
@@ -380,6 +390,14 @@ service SimulationService {
   rpc StreamExperimentProgress(StreamExperimentProgressRequest) returns (stream StreamExperimentProgressResponse) {
     option (google.api.http) = {
       get: "/v1/experiments/{id}/stream"
+    };
+  }
+
+  // IngestOutcome reports real-world outcomes for an execution.
+  rpc IngestOutcome(IngestOutcomeRequest) returns (IngestOutcomeResponse) {
+    option (google.api.http) = {
+      post: "/v1/outcomes"
+      body: "*"
     };
   }
 }
