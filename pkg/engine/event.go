@@ -50,11 +50,14 @@ type NodeStateChangedPayload struct {
 
 // NodeCompletedPayload contains details about a node completion.
 type NodeCompletedPayload struct {
-	Status        Status         `json:"status"`
-	Output        map[string]any `json:"output,omitempty"`
-	Version       uint64         `json:"version"`
-	PolicyID      string         `json:"policyId,omitempty"`
-	PolicyVersion string         `json:"policyVersion,omitempty"`
+	Status              Status         `json:"status"`
+	Output              map[string]any `json:"output,omitempty"`
+	Version             uint64         `json:"version"`
+	PolicyID            string         `json:"policyId,omitempty"`
+	PolicyVersion       string         `json:"policyVersion,omitempty"`
+	ShadowPolicyID      string         `json:"shadowPolicyId,omitempty"`
+	ShadowPolicyVersion string         `json:"shadowPolicyVersion,omitempty"`
+	ShadowChoice        string         `json:"shadowChoice,omitempty"`
 }
 
 // NodeFailedPayload contains details about a node failure.
@@ -160,20 +163,26 @@ func NewEvent(
 	case *NodeCompletedPayload:
 		if p != nil {
 			finalPayload = NodeCompletedPayload{
-				Status:        p.Status,
-				Output:        deepCopyMap(p.Output),
-				Version:       p.Version,
-				PolicyID:      p.PolicyID,
-				PolicyVersion: p.PolicyVersion,
+				Status:              p.Status,
+				Output:              deepCopyMap(p.Output),
+				Version:             p.Version,
+				PolicyID:            p.PolicyID,
+				PolicyVersion:       p.PolicyVersion,
+				ShadowPolicyID:      p.ShadowPolicyID,
+				ShadowPolicyVersion: p.ShadowPolicyVersion,
+				ShadowChoice:        p.ShadowChoice,
 			}
 		}
 	case NodeCompletedPayload:
 		finalPayload = NodeCompletedPayload{
-			Status:        p.Status,
-			Output:        deepCopyMap(p.Output),
-			Version:       p.Version,
-			PolicyID:      p.PolicyID,
-			PolicyVersion: p.PolicyVersion,
+			Status:              p.Status,
+			Output:              deepCopyMap(p.Output),
+			Version:             p.Version,
+			PolicyID:            p.PolicyID,
+			PolicyVersion:       p.PolicyVersion,
+			ShadowPolicyID:      p.ShadowPolicyID,
+			ShadowPolicyVersion: p.ShadowPolicyVersion,
+			ShadowChoice:        p.ShadowChoice,
 		}
 	case *NodeFailedPayload:
 		if p != nil {
@@ -280,11 +289,14 @@ func (e *Event) Payload() any {
 		}
 	case NodeCompletedPayload:
 		return NodeCompletedPayload{
-			Status:        p.Status,
-			Output:        deepCopyMap(p.Output),
-			Version:       p.Version,
-			PolicyID:      p.PolicyID,
-			PolicyVersion: p.PolicyVersion,
+			Status:              p.Status,
+			Output:              deepCopyMap(p.Output),
+			Version:             p.Version,
+			PolicyID:            p.PolicyID,
+			PolicyVersion:       p.PolicyVersion,
+			ShadowPolicyID:      p.ShadowPolicyID,
+			ShadowPolicyVersion: p.ShadowPolicyVersion,
+			ShadowChoice:        p.ShadowChoice,
 		}
 	case ExternalSignalReceivedPayload:
 		return ExternalSignalReceivedPayload{

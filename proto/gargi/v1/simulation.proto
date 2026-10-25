@@ -202,6 +202,21 @@ message CancelExperimentResponse {
   ExperimentStatus status = 2;
 }
 
+// DeployPolicyRequest sets the deployment mode of a policy version.
+message DeployPolicyRequest {
+  string id = 1;
+  string version = 2;
+  // "shadow" or "live".
+  string mode = 3;
+}
+
+// DeployPolicyResponse returns the updated deployment configuration.
+message DeployPolicyResponse {
+  string id = 1;
+  string version = 2;
+  string mode = 3;
+}
+
 // GetReportRequest fetches one report of a finished experiment.
 message GetReportRequest {
   string id = 1;
@@ -332,6 +347,14 @@ service SimulationService {
   rpc CancelExperiment(CancelExperimentRequest) returns (CancelExperimentResponse) {
     option (google.api.http) = {
       post: "/v1/experiments/{id}:cancel"
+      body: "*"
+    };
+  }
+
+  // DeployPolicy sets the deployment mode of a policy.
+  rpc DeployPolicy(DeployPolicyRequest) returns (DeployPolicyResponse) {
+    option (google.api.http) = {
+      post: "/v1/policies/{id}:deploy"
       body: "*"
     };
   }

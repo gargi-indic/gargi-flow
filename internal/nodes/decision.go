@@ -132,6 +132,19 @@ type decisionNode struct {
 
 var _ engine.NodeInterface = (*decisionNode)(nil)
 
+// ShadowResult captures the result of evaluating a shadow policy.
+type ShadowResult struct {
+	PolicyID      string
+	PolicyVersion string
+	Choice        string
+}
+
+// ShadowDecisionChooser is implemented by choosers that evaluate shadow policies alongside the primary choice.
+type ShadowDecisionChooser interface {
+	DecisionChooser
+	ChooseWithShadow(ctx context.Context, decision engine.NodeID, obs map[string]any, options []string) (string, *ShadowResult, error)
+}
+
 func (n *decisionNode) Execute(ctx context.Context, nc engine.NodeContext) (*engine.StateMutation, error) {
 	ctx = WithNodeContext(ctx, nc)
 	state := nc.State()
@@ -165,9 +178,21 @@ func (n *decisionNode) Execute(ctx context.Context, nc engine.NodeContext) (*eng
 		}
 	}
 
-	choice, err := n.chooser.Choose(ctx, nc.NodeID(), obs, n.cfg.Options)
-	if err != nil {
-		return nil, engine.NewNonRetryableError(fmt.Errorf("chooser failed: %w", err))
+	var choice string
+	var shadow *ShadowResult
+	if sc, ok := n.chooser.(ShadowDecisionChooser); ok {
+		c, sh, err := sc.ChooseWithShadow(ctx, nc.NodeID(), obs, n.cfg.Options)
+		if err != nil {
+			return nil, engine.NewNonRetryableError(fmt.Errorf("chooser failed: %w", err))
+		}
+		choice = c
+		shadow = sh
+	} else {
+		c, err := n.chooser.Choose(ctx, nc.NodeID(), obs, n.cfg.Options)
+		if err != nil {
+			return nil, engine.NewNonRetryableError(fmt.Errorf("chooser failed: %w", err))
+		}
+		choice = c
 	}
 
 	isValidChoice := false
@@ -182,9 +207,16 @@ func (n *decisionNode) Execute(ctx context.Context, nc engine.NodeContext) (*eng
 		return nil, engine.NewNonRetryableError(fmt.Errorf("chooser returned invalid option %q", choice))
 	}
 
-	mut := engine.NewStateMutation(nc.NodeID(), 0, nil, map[string]any{
+	outputs := map[string]any{
 		"choice": choice,
-	}, nil, nil)
+	}
+	if shadow != nil {
+		outputs["shadow_choice"] = shadow.Choice
+		outputs["shadow_policy_id"] = shadow.PolicyID
+		outputs["shadow_policy_version"] = shadow.PolicyVersion
+	}
+
+	mut := engine.NewStateMutation(nc.NodeID(), 0, nil, outputs, nil, nil)
 
 	return &mut, nil
 }
@@ -219,13 +251,19 @@ func NewPolicyDecisionChooser(store engine.PolicyStore) *PolicyDecisionChooser {
 
 // Choose implements DecisionChooser backed by PolicyStore.
 func (c *PolicyDecisionChooser) Choose(ctx context.Context, decision engine.NodeID, obs map[string]any, options []string) (string, error) {
+	choice, _, err := c.ChooseWithShadow(ctx, decision, obs, options)
+	return choice, err
+}
+
+// ChooseWithShadow implements ShadowDecisionChooser backed by PolicyStore.
+func (c *PolicyDecisionChooser) ChooseWithShadow(ctx context.Context, decision engine.NodeID, obs map[string]any, options []string) (string, *ShadowResult, error) {
 	if c.store == nil {
-		return "", errors.New("policy store is not configured")
+		return "", nil, errors.New("policy store is not configured")
 	}
 
 	nc, ok := NodeContextFromContext(ctx)
 	if !ok || nc == nil {
-		return "", errors.New("node context is required for policy decision chooser")
+		return "", nil, errors.New("node context is required for policy decision chooser")
 	}
 
 	var graphID string
@@ -250,34 +288,48 @@ func (c *PolicyDecisionChooser) Choose(ctx context.Context, decision engine.Node
 		}
 	}
 
-	// If policyID or version is empty, resolve active deployment from PolicyStore
+	var dep *engine.PolicyDeployment
+	if graphID != "" {
+		d, err := c.store.GetDeployment(ctx, graphID)
+		if err == nil {
+			dep = d
+		} else if !errors.Is(err, engine.ErrDeploymentNotFound) {
+			return "", nil, fmt.Errorf("failed to resolve policy deployment for graph %q: %w", graphID, err)
+		}
+	}
+
+	// Resolve primary policy and version
 	if policyID == "" || version == "" {
-		if graphID == "" {
-			return "", errors.New("cannot resolve policy deployment without graph ID")
-		}
-		dep, err := c.store.GetDeployment(ctx, graphID)
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve policy deployment for graph %q: %w", graphID, err)
-		}
-		if dep == nil || dep.Mode != engine.DeploymentLive {
-			return "", fmt.Errorf("no live deployment found for graph %q", graphID)
-		}
-		if policyID != "" && dep.PolicyID != policyID {
-			return "", fmt.Errorf("deployed policy %q does not match configured policy %q", dep.PolicyID, policyID)
-		}
-		if policyID == "" {
-			policyID = dep.PolicyID
-		}
-		if version == "" {
-			version = dep.PolicyVersion
+		if dep != nil && dep.Mode == engine.DeploymentLive {
+			if policyID != "" && dep.PolicyID != policyID {
+				return "", nil, fmt.Errorf("deployed policy %q does not match configured policy %q", dep.PolicyID, policyID)
+			}
+			if policyID == "" {
+				policyID = dep.PolicyID
+			}
+			if version == "" {
+				version = dep.PolicyVersion
+			}
+		} else {
+			// No live deployment: if dep is shadow or nil, primary proceeds with live/unpinned policy choice
+			if policyID == "" {
+				return "", nil, fmt.Errorf("no live deployment found for graph %q", graphID)
+			}
+			if version == "" {
+				rec, err := c.store.GetPolicy(ctx, graphID, policyID, "")
+				if err != nil {
+					return "", nil, fmt.Errorf("failed to retrieve unpinned policy %s: %w", policyID, err)
+				}
+				version = rec.Version
+			}
 		}
 	}
 
 	if policyID == "" {
-		return "", errors.New("policy ID could not be resolved")
+		return "", nil, errors.New("policy ID could not be resolved")
 	}
 	if version == "" {
-		return "", fmt.Errorf("policy version for %q could not be resolved", policyID)
+		return "", nil, fmt.Errorf("policy version for %q could not be resolved", policyID)
 	}
 
 	// Update recorder if supported
@@ -288,6 +340,35 @@ func (c *PolicyDecisionChooser) Choose(ctx context.Context, decision engine.Node
 		rec.SetResolvedPolicy(policyID, version)
 	}
 
+	primaryChoice, err := c.evaluatePolicy(ctx, graphID, policyID, version, decision, obs, options)
+	if err != nil {
+		return "", nil, err
+	}
+
+	var shadow *ShadowResult
+	if dep != nil && dep.Mode == engine.DeploymentShadow {
+		shadowChoice, err := c.evaluatePolicy(ctx, graphID, dep.PolicyID, dep.PolicyVersion, decision, obs, options)
+		if err != nil {
+			return "", nil, fmt.Errorf("shadow policy evaluation failed: %w", err)
+		}
+		shadow = &ShadowResult{
+			PolicyID:      dep.PolicyID,
+			PolicyVersion: dep.PolicyVersion,
+			Choice:        shadowChoice,
+		}
+
+		type shadowPolicyRecorder interface {
+			SetShadowPolicy(policyID, version, choice string)
+		}
+		if srec, ok := nc.(shadowPolicyRecorder); ok {
+			srec.SetShadowPolicy(shadow.PolicyID, shadow.PolicyVersion, shadow.Choice)
+		}
+	}
+
+	return primaryChoice, shadow, nil
+}
+
+func (c *PolicyDecisionChooser) evaluatePolicy(ctx context.Context, graphID, policyID, version string, decision engine.NodeID, obs map[string]any, options []string) (string, error) {
 	rec, err := c.store.GetPolicy(ctx, graphID, policyID, version)
 	if err != nil {
 		return "", fmt.Errorf("failed to retrieve policy %s@%s: %w", policyID, version, err)

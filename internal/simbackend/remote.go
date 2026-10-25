@@ -499,3 +499,40 @@ func (r *Remote) ExplainPolicy(ctx context.Context, ref string) (string, error) 
 	}
 	return explain.Explain(p), nil
 }
+
+// DeployPolicy sets the deployment mode of a policy version.
+func (r *Remote) DeployPolicy(ctx context.Context, ref string, mode string) (*DeployResult, error) {
+	if mode != "live" && mode != "shadow" {
+		return nil, fmt.Errorf("invalid mode %q: want 'live' or 'shadow'", mode)
+	}
+	cleanRef := ref
+	var version string
+	if before, after, ok := strings.Cut(ref, "@"); ok {
+		cleanRef = before
+		version = after
+	}
+
+	req := map[string]string{
+		"id":      cleanRef,
+		"version": version,
+		"mode":    mode,
+	}
+	path := "/v1/policies/" + url.PathEscape(cleanRef) + ":deploy"
+	body, err := r.do(ctx, http.MethodPost, path, req)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+		Mode    string `json:"mode"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("simbackend: POST %s: decoding response: %w", path, err)
+	}
+	return &DeployResult{
+		ID:      resp.ID,
+		Version: resp.Version,
+		Mode:    resp.Mode,
+	}, nil
+}

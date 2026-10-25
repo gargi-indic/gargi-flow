@@ -617,3 +617,35 @@ func TestSimulationHTTP_ExecutionAPIUnchanged(t *testing.T) {
 		require.Contains(t, spec.Paths, p)
 	}
 }
+
+func TestSimulationHTTP_DeployPolicy(t *testing.T) {
+	env := newSimEnv(t, jobs.Options{})
+	env.saveLoan()
+
+	// Deploy shadow mode via REST
+	status, body := env.do(http.MethodPost, "/v1/policies/loan-underwriting:recession-v1.yaml:deploy", map[string]any{
+		"mode": "shadow",
+	})
+	require.Equal(t, http.StatusOK, status, "%v", body)
+	require.Equal(t, "shadow", body["mode"])
+	require.Equal(t, "1", body["version"])
+
+	// Deploy live mode via REST
+	status, body = env.do(http.MethodPost, "/v1/policies/loan-underwriting:recession-v1.yaml:deploy", map[string]any{
+		"mode": "live",
+	})
+	require.Equal(t, http.StatusOK, status, "%v", body)
+	require.Equal(t, "live", body["mode"])
+
+	// Error: invalid mode
+	status, body = env.do(http.MethodPost, "/v1/policies/loan-underwriting:recession-v1.yaml:deploy", map[string]any{
+		"mode": "invalid-mode",
+	})
+	require.Equal(t, http.StatusBadRequest, status, "%v", body)
+
+	// Error: missing policy
+	status, body = env.do(http.MethodPost, "/v1/policies/loan-underwriting:missing-policy:deploy", map[string]any{
+		"mode": "shadow",
+	})
+	require.Equal(t, http.StatusNotFound, status, "%v", body)
+}

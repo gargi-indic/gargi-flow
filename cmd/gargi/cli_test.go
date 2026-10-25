@@ -548,6 +548,19 @@ func TestPolicyExplain_UsageErrors(t *testing.T) {
 	}
 }
 
+func TestPolicyDeploy_UsageErrors(t *testing.T) {
+	for _, args := range [][]string{
+		{"policy", "deploy"},
+		{"policy", "deploy", "my-policy"}, // missing --mode
+		{"policy", "deploy", "my-policy", "--mode", "invalid"},
+		{"policy", "deploy", "p1", "p2", "--mode", "shadow"},
+	} {
+		code, _, errOut := gargi(t, args...)
+		require.Equal(t, 2, code, "args %q", args)
+		require.NotEmpty(t, errOut, "args %q", args)
+	}
+}
+
 func TestMCPServeUsageError(t *testing.T) {
 	t.Run("neither flag", func(t *testing.T) {
 		var stderr bytes.Buffer

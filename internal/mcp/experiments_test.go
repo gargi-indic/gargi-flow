@@ -169,7 +169,7 @@ seed: 42
 	require.NotEmpty(t, repErr.Errors)
 	require.Contains(t, repErr.Errors[0].Hint, "add reports: [voi]")
 
-	// deploy_policy has DestructiveHint annotation and returns unsupported
+	// deploy_policy has DestructiveHint annotation
 	toolsRes, err := s.ListTools(context.Background(), nil)
 	require.NoError(t, err)
 	var deployTool *sdk_mcp.Tool
@@ -184,17 +184,48 @@ seed: 42
 	require.NotNil(t, deployTool.Annotations.DestructiveHint)
 	require.True(t, *deployTool.Annotations.DestructiveHint)
 
-	var deployErr struct {
-		Code    string `json:"code"`
+	var errRes struct {
+		Errors []struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	isErr = call(t, s, "deploy_policy", m{
+		"model_id": "loan-err!",
+		"policy":   "p1",
+	}, &errRes)
+	require.True(t, isErr)
+	require.NotEmpty(t, errRes.Errors)
+
+	// Create loan model with policies and deploy
+	mustOK(t, s, "create_model", m{"id": "loan-deploy", "template": "loan-underwriting"})
+
+	var deployRes struct {
+		Status  string `json:"status"`
+		Policy  string `json:"policy"`
+		Version string `json:"version"`
+		Mode    string `json:"mode"`
 		Message string `json:"message"`
 	}
 	isErr = call(t, s, "deploy_policy", m{
-		"model_id": "loan-err",
-		"policy":   "p1",
-	}, &deployErr)
-	require.True(t, isErr)
-	require.Equal(t, "unsupported", deployErr.Code)
-	require.Contains(t, deployErr.Message, "not available until P3")
+		"model_id": "loan-deploy",
+		"policy":   "recession-v1.yaml",
+		"mode":     "shadow",
+	}, &deployRes)
+	require.False(t, isErr)
+	require.Equal(t, "ok", deployRes.Status)
+	require.Equal(t, "shadow", deployRes.Mode)
+	require.Equal(t, "1", deployRes.Version)
+
+	// Deploy live mode
+	isErr = call(t, s, "deploy_policy", m{
+		"model_id": "loan-deploy",
+		"policy":   "recession-v1.yaml",
+		"mode":     "live",
+	}, &deployRes)
+	require.False(t, isErr)
+	require.Equal(t, "ok", deployRes.Status)
+	require.Equal(t, "live", deployRes.Mode)
 }
 
 func TestPrompts_ModelThisDecision(t *testing.T) {

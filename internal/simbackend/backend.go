@@ -37,6 +37,15 @@ type Backend interface {
 	ExplainPolicy(ctx context.Context, ref string) (string, error)
 	// Cancel cancels a queued or running experiment.
 	Cancel(ctx context.Context, experimentID string) error
+	// DeployPolicy sets the deployment mode of a policy version.
+	DeployPolicy(ctx context.Context, ref string, mode string) (*DeployResult, error)
+}
+
+// DeployResult holds the outcome of DeployPolicy.
+type DeployResult struct {
+	ID      string `json:"id"`
+	Version string `json:"version"`
+	Mode    string `json:"mode"`
 }
 
 // RunOptions tunes RunExperiment.
