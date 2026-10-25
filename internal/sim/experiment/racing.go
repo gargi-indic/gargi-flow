@@ -492,8 +492,11 @@ func runRacing(ctx context.Context, exp *CompiledExperiment, racing RacingSource
 	if useExact {
 		primary = exactRes
 	}
-	if rep.Reports, err = buildReports(exp, spec, policies, primary, feasible); err != nil {
+	if rep.Reports, err = buildReports(exp, spec, policies, primary, feasible, nil); err != nil {
 		return nil, err
+	}
+	if rep.Reports != nil && rep.Reports.Tournament != nil {
+		rep.Tournament = rep.Reports.Tournament
 	}
 	if rep.Reports != nil {
 		rep.Reports.Racing = racingRep

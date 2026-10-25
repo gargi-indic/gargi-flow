@@ -38,6 +38,8 @@ type ReportSet struct {
 	Regret *report.Regret `json:"regret,omitempty"`
 	// Robust holds the expected-value, maximin and CVaR picks.
 	Robust *report.Robust `json:"robust,omitempty"`
+	// Tournament holds the ranking and head-to-head pairwise matchups.
+	Tournament *report.Tournament `json:"tournament,omitempty"`
 	// Pareto holds one entry per requested pareto report, in request order.
 	Pareto []report.Pareto `json:"pareto,omitempty"`
 	// VOI holds, per requested voi report (in request order), one entry
@@ -301,20 +303,31 @@ func validateReports(exp *CompiledExperiment, errs *engine.ValidationErrors) {
 	}
 }
 
+// hasTournamentReport reports whether exp requests a tournament report.
+func hasTournamentReport(exp *CompiledExperiment) bool {
+	for _, r := range exp.Reports {
+		if r.Kind == report.KindTournament {
+			return true
+		}
+	}
+	return false
+}
+
 // buildReports computes the requested reports from the primary estimates
 // pairs[w][p] of policies.
-func buildReports(exp *CompiledExperiment, spec *evalSpec, policies []sim.Policy, pairs [][]estimatePair, feasible [][]bool) (*ReportSet, error) {
+func buildReports(exp *CompiledExperiment, spec *evalSpec, policies []sim.Policy, pairs [][]estimatePair, feasible [][]bool, replications [][][]float64) (*ReportSet, error) {
 	if len(exp.Reports) == 0 {
 		return nil, nil
 	}
 	np, nw := len(policies), len(exp.Worlds)
 	t := report.Table{
-		Worlds:   make([]sim.WorldID, nw),
-		Policies: make([]string, np),
-		Mean:     make([][]float64, np),
-		Feasible: make([][]bool, np),
-		Metrics:  map[string][][]float64{},
-		Tails:    make([][][]report.Atom, np),
+		Worlds:       make([]sim.WorldID, nw),
+		Policies:     make([]string, np),
+		Mean:         make([][]float64, np),
+		Feasible:     make([][]bool, np),
+		Metrics:      map[string][][]float64{},
+		Tails:        make([][][]report.Atom, np),
+		Replications: replications,
 	}
 	for w, world := range exp.Worlds {
 		t.Worlds[w] = world.ID
@@ -353,6 +366,8 @@ func buildReports(exp *CompiledExperiment, spec *evalSpec, policies []sim.Policy
 			set.Regret, err = report.NewRegret(t)
 		case report.KindRobust:
 			set.Robust, err = report.NewRobust(t, exp.WorldPrior(), exp.CVaRAlpha())
+		case report.KindTournament:
+			set.Tournament, err = report.NewTournament(t, exp.WorldPrior(), r.Alpha)
 		case report.KindPareto:
 			var p *report.Pareto
 			if p, err = report.NewPareto(t, r.X, r.Y); err == nil {

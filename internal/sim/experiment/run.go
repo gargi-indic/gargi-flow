@@ -11,6 +11,7 @@ import (
 
 	"github.com/gargi-indic/gargi-flow/internal/sim/kernel"
 	"github.com/gargi-indic/gargi-flow/internal/sim/model"
+	"github.com/gargi-indic/gargi-flow/internal/sim/report"
 	"github.com/gargi-indic/gargi-flow/internal/sim/sampler"
 	"github.com/gargi-indic/gargi-flow/pkg/sim"
 )
@@ -87,6 +88,8 @@ type Report struct {
 	Reports *ReportSet `json:"reports,omitempty"`
 	// Racing holds the elimination history and speedup of racing search.
 	Racing *RacingReport `json:"racing,omitempty"`
+	// Tournament holds the tournament report if requested.
+	Tournament *report.Tournament `json:"tournament,omitempty"`
 }
 
 // WorldReport holds the policy results of one world.
@@ -299,6 +302,7 @@ func Run(ctx context.Context, exp *CompiledExperiment, src PolicySource, opts Op
 		}
 	}
 	runs := 0
+	var mcReplications [][][]float64
 	if useMC {
 		r := &runner{
 			exp:      exp,
@@ -313,6 +317,9 @@ func Run(ctx context.Context, exp *CompiledExperiment, src PolicySource, opts Op
 		results, err := r.run(ctx, workers, progress(exactTotal))
 		if err != nil {
 			return nil, err
+		}
+		if hasTournamentReport(exp) {
+			mcReplications = r.replications(results)
 		}
 		mcRes = r.estimates(results)
 		runs = exp.Def.Runs
@@ -367,8 +374,11 @@ func Run(ctx context.Context, exp *CompiledExperiment, src PolicySource, opts Op
 		}
 		rep.Worlds = append(rep.Worlds, wr)
 	}
-	if rep.Reports, err = buildReports(exp, spec, policies, primary, feasible); err != nil {
+	if rep.Reports, err = buildReports(exp, spec, policies, primary, feasible, mcReplications); err != nil {
 		return nil, err
+	}
+	if rep.Reports != nil && rep.Reports.Tournament != nil {
+		rep.Tournament = rep.Reports.Tournament
 	}
 	if hasExplainReports(exp) {
 		x := &explainer{exp: exp, worlds: rep.Worlds, policies: policies, solution: solution, useExact: useExact, workers: workers}
@@ -506,6 +516,24 @@ func (r *runner) runChunk(ctx context.Context, j job) chunkResult {
 		}
 	}
 	return res
+}
+
+// replications extracts the replication objective values for each policy in
+// each world across all chunks, indexed [policy][world].
+func (r *runner) replications(results [][]*chunkResult) [][][]float64 {
+	np := len(r.policies)
+	nw := len(r.exp.Worlds)
+	out := make([][][]float64, np)
+	for p := range np {
+		out[p] = make([][]float64, nw)
+		for w := range nw {
+			out[p][w] = make([]float64, 0, r.runs)
+			for _, chunk := range results[w] {
+				out[p][w] = append(out[p][w], chunk.stats[p].objective.values...)
+			}
+		}
+	}
+	return out
 }
 
 // estimates merges the chunk summaries in chunk-index order and returns the

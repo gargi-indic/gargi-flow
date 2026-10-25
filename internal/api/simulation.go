@@ -26,7 +26,7 @@ const ReportSummary = "summary"
 
 // reportKinds lists the GetReport kinds besides ReportSummary, in the order
 // of experiment.ReportSet (its JSON field names).
-var reportKinds = []string{"regret", "robust", "pareto", "voi", "flipPoints", "pathHeatmap", "policyTree"}
+var reportKinds = []string{"regret", "robust", "tournament", "pareto", "voi", "flipPoints", "pathHeatmap", "policyTree"}
 
 // DefaultExperimentPollInterval is how often StreamExperimentProgress polls
 // the store for an experiment this server's runner is not running (for

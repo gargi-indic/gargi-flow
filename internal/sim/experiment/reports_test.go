@@ -562,3 +562,72 @@ func TestReports_NoOptInNoChange(t *testing.T) {
 		require.Nil(t, w.Policies[0].Feasible)
 	}
 }
+
+// TestReports_TournamentIntegration tests running an experiment with tournament reports.
+func TestReports_TournamentIntegration(t *testing.T) {
+	expYaml := "apiVersion: experiment/v1\nmodel: ./sim.yaml\nworlds: [base, recession]\n" +
+		"policies: {files: [recession.yaml, approve.yaml, reject.yaml]}\n" +
+		"runs: 100\nseed: 42\nreports: [tournament]\nworld_prior: {base: 0.7, recession: 0.3}\n"
+	exp := loanVariant(t, "", "", expYaml)
+	policies, err := exp.FilesSource().Policies(exp.Model)
+	require.NoError(t, err)
+
+	rep, err := Run(context.Background(), exp, staticSource(policies), Options{Workers: 4, All: true})
+	require.NoError(t, err)
+	require.NotNil(t, rep.Reports)
+	require.NotNil(t, rep.Reports.Tournament)
+	require.NotNil(t, rep.Tournament)
+	require.Equal(t, rep.Reports.Tournament, rep.Tournament)
+
+	tourn := rep.Tournament
+	require.Equal(t, 0.05, tourn.Alpha)
+	require.Len(t, tourn.Rankings, 3)
+	require.Len(t, tourn.Pairwise, 3)
+
+	// Check rankings order and ranks 1, 2, 3
+	for i, rk := range tourn.Rankings {
+		require.Equal(t, i+1, rk.Rank)
+		if i > 0 {
+			prev := tourn.Rankings[i-1]
+			require.True(t, prev.Mean >= rk.Mean)
+		}
+	}
+
+	// Verify pairwise symmetry
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			mAB := tourn.Pairwise[i][j]
+			mBA := tourn.Pairwise[j][i]
+
+			require.Equal(t, tourn.Rankings[i].PolicyID, mAB.PolicyA)
+			require.Equal(t, tourn.Rankings[j].PolicyID, mAB.PolicyB)
+
+			require.InDelta(t, mAB.MeanDiff, -mBA.MeanDiff, 1e-9)
+			require.InDelta(t, mAB.CI[0], -mBA.CI[1], 1e-9)
+			require.InDelta(t, mAB.CI[1], -mBA.CI[0], 1e-9)
+			require.InDelta(t, 1.0, mAB.WinRate+mBA.WinRate, 1e-9)
+		}
+	}
+
+	// Test with custom alpha: tournament:0.01
+	expYaml01 := "apiVersion: experiment/v1\nmodel: ./sim.yaml\nworlds: [base, recession]\n" +
+		"policies: {files: [recession.yaml, approve.yaml, reject.yaml]}\n" +
+		"runs: 100\nseed: 42\nreports: ['tournament:0.01']\nworld_prior: {base: 0.7, recession: 0.3}\n"
+	exp01 := loanVariant(t, "", "", expYaml01)
+	rep01, err := Run(context.Background(), exp01, staticSource(policies), Options{Workers: 4, All: true})
+	require.NoError(t, err)
+	require.NotNil(t, rep01.Tournament)
+	require.Equal(t, 0.01, rep01.Tournament.Alpha)
+
+	// Alpha=0.01 CI should be strictly wider than alpha=0.05 CI
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			if i == j {
+				continue
+			}
+			w05 := tourn.Pairwise[i][j].CI[1] - tourn.Pairwise[i][j].CI[0]
+			w01 := rep01.Tournament.Pairwise[i][j].CI[1] - rep01.Tournament.Pairwise[i][j].CI[0]
+			require.True(t, w01 > w05, "pair (%d, %d): w01=%v should be > w05=%v", i, j, w01, w05)
+		}
+	}
+}

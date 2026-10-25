@@ -36,6 +36,9 @@ type Table struct {
 	// robust report reads it; each tail must hold at least the lowest
 	// TailCover(prior(w), alpha) of the world's probability mass.
 	Tails [][][]Atom
+	// Replications[p][w] holds the replication objective values of policy p
+	// in world w, in replication order. Only the tournament report reads it.
+	Replications [][][]float64
 }
 
 // check validates the shape of the fields every report reads.
