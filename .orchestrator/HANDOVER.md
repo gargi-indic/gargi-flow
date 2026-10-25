@@ -50,11 +50,11 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 
 **Epic #136 exit criterion verified:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a prompt, runs it, and extracts a Pareto set of policies, all verified by `TestCanary_AgentWalkthrough` and `TestCanaryGolden_ParetoSet`.
 
-## 4. Current state and immediate resume steps (2026-10-25, ~16:25 UTC)
+## 4. Current state and immediate resume steps (2026-10-25, ~17:10 UTC)
 0. **Epic #148 closed!** Exit criterion achieved, all 9 tasks merged, Issue #158 deferred to customer demand per human decision. Epic #148 closed.
 1. **Active epic:** **#159 Simulation P3: deploy, observe and recalibrate**.
-   - Step 1: **#160** PolicyStore contract and adapters (`agent/jules` session 8721925365230232836) — ⏳ **starting**.
-   - Step 2: **#161** Production decision node with pinned policy versions (`agent/jules`) — ⏳ pending.
+   - Step 1: **#160** PolicyStore contract and adapters (`agent/jules` session 8721925365230232836) — ✅ **merged** PR #222 (`a5d8909`), closed.
+   - Step 2: **#161** Production decision node with pinned policy versions (`agent/jules`) — ⏳ **starting**.
    - Step 3: **#162** DeployPolicy API with shadow and live modes (`agent/jules`) — ⏳ pending.
    - Step 4: **#163** Outcome ingestion API (`agent/jules`) — ⏳ pending.
    - Step 5: **#164** Calibration from executions and outcomes (`agent/claude`) — ⏳ pending.
@@ -62,4 +62,4 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
    - Step 7: **#166** Temporal fidelity check: gargi sim verify (`agent/jules`) — ⏳ pending.
    - Step 8: **#167** Canvas: Deploy mode and live drift overlay (`agent/claude`) — ⏳ pending.
 2. **Next immediate action:**
-   - Dispatch Issue #160 to Jules with 30-min monitoring/fallback rule.
+   - Dispatch Issue #161 to Jules with 30-min monitoring/fallback rule.
