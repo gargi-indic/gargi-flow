@@ -227,6 +227,19 @@ message GetReportRequest {
 
 // GetReportResponse carries the report as JSON. Over REST the body is the
 // report itself.
+// GetDriftReportRequest fetches the drift report for a model.
+message GetDriftReportRequest {
+  string model_id = 1;
+  string policy_version = 2;
+}
+
+// GetDriftReportResponse carries the drift report.
+message GetDriftReportResponse {
+  string model_id = 1;
+  string policy_version = 2;
+  google.protobuf.Value report = 3;
+}
+
 message GetReportResponse {
   string id = 1;
   string kind = 2;
@@ -394,6 +407,13 @@ service SimulationService {
   }
 
   // IngestOutcome reports real-world outcomes for an execution.
+  // GetDriftReport returns the drift report comparing predicted vs observed metrics per policy version.
+  rpc GetDriftReport(GetDriftReportRequest) returns (GetDriftReportResponse) {
+    option (google.api.http) = {
+      get: "/v1/models/{model_id}/drift"
+    };
+  }
+
   rpc IngestOutcome(IngestOutcomeRequest) returns (IngestOutcomeResponse) {
     option (google.api.http) = {
       post: "/v1/outcomes"

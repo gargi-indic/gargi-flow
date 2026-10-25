@@ -293,6 +293,48 @@ func TestExperiments_IngestOutcome(t *testing.T) {
 	require.NotEmpty(t, errRes.Errors)
 }
 
+func TestExperiments_GetDriftReport(t *testing.T) {
+	s := newWorkspaceSession(t)
+	buildLoanModel(t, s, "loan-drift")
+
+	// Get drift report on workspace model
+	var rep struct {
+		PolicyVersion string         `json:"policyVersion"`
+		DriftDetected bool           `json:"driftDetected"`
+		Nodes         map[string]any `json:"nodes"`
+	}
+	isErr := call(t, s, "get_drift_report", m{
+		"model_id":       "loan-drift",
+		"policy_version": "1",
+	}, &rep)
+	require.False(t, isErr)
+	require.Equal(t, "1", rep.PolicyVersion)
+
+	// Call without policy_version (defaults to "1")
+	isErr = call(t, s, "get_drift_report", m{
+		"model_id": "loan-drift",
+	}, &rep)
+	require.False(t, isErr)
+	require.Equal(t, "1", rep.PolicyVersion)
+
+	// Invalid model id
+	var errRes struct {
+		Errors []issue `json:"errors"`
+	}
+	isErr = call(t, s, "get_drift_report", m{
+		"model_id": "INVALID_ID!",
+	}, &errRes)
+	require.True(t, isErr)
+	require.NotEmpty(t, errRes.Errors)
+
+	// Missing model
+	isErr = call(t, s, "get_drift_report", m{
+		"model_id": "missing-model",
+	}, &errRes)
+	require.True(t, isErr)
+	require.NotEmpty(t, errRes.Errors)
+}
+
 func TestPrompts_ModelThisDecision(t *testing.T) {
 	s := newWorkspaceSession(t)
 	res, err := s.GetPrompt(context.Background(), &sdk_mcp.GetPromptParams{

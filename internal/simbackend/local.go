@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gargi-indic/gargi-flow/internal/nodes"
+	"github.com/gargi-indic/gargi-flow/internal/sim/calibrate"
 	"github.com/gargi-indic/gargi-flow/internal/sim/experiment"
 	"github.com/gargi-indic/gargi-flow/internal/sim/explain"
 	"github.com/gargi-indic/gargi-flow/internal/sim/jobs"
@@ -373,4 +374,85 @@ func (l *Local) IngestOutcome(ctx context.Context, req OutcomeRequest) error {
 		Latents:       req.Latents,
 		ObservedAt:    obsAt,
 	})
+}
+
+type localStateStoreReader struct {
+	store engine.StateStore
+}
+
+func (r *localStateStoreReader) ListExecutions(ctx context.Context, filter engine.ExecutionFilter) ([]*engine.ExecutionSummary, error) {
+	return r.store.ListExecutions(ctx, filter)
+}
+
+func (r *localStateStoreReader) GetState(ctx context.Context, execID engine.ExecutionID) (*engine.GraphState, error) {
+	return r.store.GetState(ctx, execID)
+}
+
+func (r *localStateStoreReader) GetLogs(ctx context.Context, execID engine.ExecutionID, fromSequence uint64, limit int) ([]*engine.ExecutionLogEntry, error) {
+	if el, ok := r.store.(engine.ExecutionLog); ok {
+		return el.GetLogs(ctx, execID, fromSequence, limit)
+	}
+	return nil, nil
+}
+
+// GetDriftReport returns the drift report comparing predicted vs observed metrics per policy version for a model.
+func (l *Local) GetDriftReport(ctx context.Context, modelID string, policyVersion string) (json.RawMessage, error) {
+	if l.expStore == nil {
+		return nil, fmt.Errorf("get drift report: local backend keeps no experiment store: %w", ErrUnsupported)
+	}
+	if modelID == "" {
+		return nil, errors.New("model_id is required")
+	}
+	if policyVersion == "" {
+		policyVersion = "1"
+	}
+
+	bundle, err := l.expStore.GetModel(ctx, modelID, "")
+	if err != nil {
+		if errors.Is(err, engine.ErrStoreNotFound) || strings.Contains(err.Error(), "not found") {
+			return nil, fmt.Errorf("%w: model %q not found", ErrNotFound, modelID)
+		}
+		return nil, err
+	}
+
+	reg, err := jobs.NewRegistry()
+	if err != nil {
+		return nil, &InternalError{Err: err}
+	}
+
+	mod, errs := jobs.ValidateModel(bundle, reg)
+	if errs != nil && errs.Len() > 0 {
+		return nil, errs
+	}
+	if mod == nil {
+		return nil, errors.New("model validation failed")
+	}
+
+	var reader calibrate.ExecutionReader
+	if rr, ok := l.stateStore.(calibrate.ExecutionReader); ok {
+		reader = rr
+	} else if l.stateStore != nil {
+		reader = &localStateStoreReader{store: l.stateStore}
+	} else {
+		reader = calibrate.NewEmptyReader()
+	}
+
+	outcomes, err := l.expStore.ListOutcomes(ctx, sim.OutcomeQueryOptions{
+		GraphID:       modelID,
+		PolicyVersion: policyVersion,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	report, err := calibrate.CheckDrift(ctx, mod, reader, outcomes, policyVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := json.Marshal(report)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
 }

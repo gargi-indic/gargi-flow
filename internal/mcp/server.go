@@ -226,6 +226,10 @@ func (s *workspaceServer) register(server *mcp.Server) {
 		Name:        "ingest_outcome",
 		Description: "Ingests real-world outcomes for an execution.",
 	}, s.ingestOutcome)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_drift_report",
+		Description: "Returns the drift report comparing predicted vs observed metrics per policy version for a model.",
+	}, s.getDriftReport)
 
 	server.AddResourceTemplate(&mcp.ResourceTemplate{
 		URITemplate: modelURIPrefix + "{id}",
