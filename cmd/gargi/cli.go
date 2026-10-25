@@ -217,7 +217,7 @@ func modelInit(args []string, stdout, stderr io.Writer) int {
 		return parseExit(err)
 	}
 	if *template == "" || len(pos) > 1 {
-		printf(stderr, "%s\n", "usage: gargi model init --template canary|loan [dir]")
+		printf(stderr, "%s\n", "usage: gargi model init --template canary|loan|claims [dir]")
 		return exitUsage
 	}
 	dest := "."

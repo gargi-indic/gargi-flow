@@ -333,6 +333,8 @@ func loadTemplate(name string) (*modelDocs, error) {
 		name = "canary-rollout"
 	case "loan":
 		name = "loan-underwriting"
+	case "claims":
+		name = "claims-triage"
 	}
 	if name == "" || strings.ContainsAny(name, "/\\.") {
 		return nil, fmt.Errorf("unknown template %q", name)

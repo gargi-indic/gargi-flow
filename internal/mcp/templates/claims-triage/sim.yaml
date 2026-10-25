@@ -1,0 +1,38 @@
+apiVersion: sim/v1
+id: claims-triage
+graph: ./graph.yaml
+worlds:
+  normal: {arrival_rate: 10}
+  cat_surge: {arrival_rate: 50}
+arrivals:
+  poisson:
+    rate: "world.arrival_rate"
+horizon: "240h"
+latents:
+  fraud: {bernoulli: {p: 0.05}}
+  amount: {lognormal: {mu: 7.5, sigma: 1.0}}
+  score: {uniform: {min: 0.0, max: 1.0}}
+resources:
+  adjuster:
+    capacity: 10
+behaviors:
+  intake:
+    duration: 0s
+  ai_assess:
+    cost: 1.5
+    duration: 10s
+    output:
+      confidence: {expr: "latent.fraud ? (0.2 + 0.3 * latent.score) : (0.7 + 0.28 * latent.score)"}
+  adjuster:
+    cost: 500
+    duration: {lognormal: {mu: 11.2, sigma: 0.5}}
+    resource: adjuster
+    output:
+      result: {choice: {approved: "latent.fraud ? 0.05 : 0.99", flagged: "latent.fraud ? 0.95 : 0.01"}}
+metrics:
+  total_cost: "run.cost + (nodes.payout.status == 'Succeeded' && latent.fraud ? double(latent.amount) : 0.0) + (run.duration > 432000.0 ? 1000.0 : 0.0)"
+  p95_duration: "run.duration / 3600.0"
+objective:
+  name: total_cost
+  value: "-run.cost - (nodes.payout.status == 'Succeeded' && latent.fraud ? double(latent.amount) : 0.0) - (run.duration > 432000.0 ? 1000.0 : 0.0)"
+  maximize: mean

@@ -455,7 +455,6 @@
     },
     "ArrivalsSpec": {
       "type": "object",
-      "additionalProperties": false,
       "oneOf": [
         {
           "required": [

@@ -1,0 +1,19 @@
+apiVersion: policy/v1
+id: matrix-calibrated
+version: "1"
+params:
+  theta:
+    min: 0.8
+    max: 1.0
+    default: 0.95
+  adjusters:
+    values: [20]
+    default: 20
+decisions:
+  route:
+    rules:
+      - when: "ai_assess.output.confidence >= params.theta"
+        choose: auto_pay
+      - when: "ai_assess.output.confidence <= 0.4"
+        choose: fraud_unit
+      - else: adjuster

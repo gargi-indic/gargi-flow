@@ -284,6 +284,7 @@ func TestSchema_Examples(t *testing.T) {
 			docs: []string{
 				"../../../schemas/sim/v1/example.yaml",
 				"../../../examples/simulation/loan/sim.yaml",
+				"../../../examples/simulation/claims/sim.yaml",
 			},
 		},
 		{
@@ -292,6 +293,9 @@ func TestSchema_Examples(t *testing.T) {
 				"../../../schemas/policy/v1/example.yaml",
 				"../../../examples/simulation/loan/policies/recession-v1.yaml",
 				"../experiment/testdata/threshold/policies/theta.yaml",
+				"../../../examples/simulation/claims/policies/rules.yaml",
+				"../../../examples/simulation/claims/policies/matrix.yaml",
+				"../../../examples/simulation/claims/policies/agent.yaml",
 			},
 		},
 		{
@@ -300,6 +304,7 @@ func TestSchema_Examples(t *testing.T) {
 				"../../../schemas/experiment/v1/example.yaml",
 				"../../../examples/simulation/loan/experiment.yaml",
 				"../experiment/testdata/threshold/experiment.yaml",
+				"../../../examples/simulation/claims/experiment.yaml",
 			},
 		},
 	}
