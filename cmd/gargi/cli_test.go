@@ -63,6 +63,9 @@ func TestUsageErrors(t *testing.T) {
 		{"bogus"},
 		{"model"},
 		{"model", "check"},
+		{"model", "calibrate"},
+		{"model", "calibrate", "a", "b"},
+		{"model", "calibrate", "--nope", "x.yaml"},
 		{"sim"},
 		{"model", "validate"},
 		{"sim", "run", "--local"},
@@ -129,6 +132,62 @@ func TestModelValidate_ParseError(t *testing.T) {
 	code, out, _ := gargi(t, "model", "validate", path)
 	require.Equal(t, 1, code)
 	require.NotEmpty(t, out)
+}
+
+func TestModelCalibrate_Loan(t *testing.T) {
+	code, out, errOut := gargi(t, "model", "calibrate", filepath.Join(loanDir, "sim.yaml"))
+	require.Equal(t, 0, code, errOut)
+	require.Contains(t, out, "# Calibrated sim/v1 model overlay")
+	require.Contains(t, out, "# Samples: 0 executions")
+	require.Contains(t, out, "apiVersion: sim/v1")
+	require.Contains(t, out, "loan-underwriting")
+}
+
+func TestModelCalibrate_OutFlag(t *testing.T) {
+	outFile := filepath.Join(t.TempDir(), "calibrated.yaml")
+	code, out, errOut := gargi(t, "model", "calibrate", "--out", outFile, filepath.Join(loanDir, "sim.yaml"))
+	require.Equal(t, 0, code, errOut)
+	require.Empty(t, out)
+
+	data, err := os.ReadFile(outFile)
+	require.NoError(t, err)
+	require.Contains(t, string(data), "# Calibrated sim/v1 model overlay")
+	require.Contains(t, string(data), "apiVersion: sim/v1")
+	require.Contains(t, string(data), "loan-underwriting")
+}
+
+func TestModelCalibrate_OfflineExecutions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	execJSON := `[
+		{
+			"summary": {"executionId": "e1", "graphId": "loan-underwriting", "status": "Failed"},
+			"state": {"executionId": "e1", "nodes": ["screen"], "nodeStates": {"screen": {"nodeId": "screen", "status": "Failed", "errorMessage": "net_error"}}},
+			"logs": [
+				{"executionId": "e1", "sequence": 1, "details": {"nodeId": "screen", "oldStatus": "Pending", "status": "Running"}},
+				{"executionId": "e1", "sequence": 2, "details": {"nodeId": "screen", "oldStatus": "Running", "status": "Failed", "errorClass": "timeout"}}
+			]
+		}
+	]`
+	execPath := filepath.Join(tmpDir, "execs.json")
+	require.NoError(t, os.WriteFile(execPath, []byte(execJSON), 0o600))
+
+	outcomeJSON := `[
+		{"executionId": "e1", "graphId": "loan-underwriting", "latents": {"defaults": true}}
+	]`
+	outcomePath := filepath.Join(tmpDir, "outcomes.json")
+	require.NoError(t, os.WriteFile(outcomePath, []byte(outcomeJSON), 0o600))
+
+	outFile := filepath.Join(tmpDir, "calibrated.yaml")
+	code, _, errOut := gargi(t, "model", "calibrate", "--executions", execPath, "--outcomes", outcomePath, "--out", outFile, filepath.Join(loanDir, "sim.yaml"))
+	require.Equal(t, 0, code, errOut)
+
+	data, err := os.ReadFile(outFile)
+	require.NoError(t, err)
+	content := string(data)
+	require.Contains(t, content, "# Samples: 1 executions")
+	require.Contains(t, content, "# Outcomes: 1 records")
+	require.Contains(t, content, "class: timeout")
 }
 
 func TestSimRun_RequiresLocal(t *testing.T) {
