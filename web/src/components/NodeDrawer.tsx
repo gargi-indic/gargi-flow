@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { definitions } from '../api/schema';
+import BehaviorEditor from './BehaviorEditor';
 
 interface NodeDrawerProps {
   executionId: string | null;
@@ -151,6 +152,7 @@ const NodeDrawer: React.FC<NodeDrawerProps> = ({ executionId, nodeId, config, on
   };
 
   const isWaitNode = config?.type === 'wait_for_signal';
+  const isBehaviorNode = config?.type === 'behavior' || (config && !config.type);
   const isNodeActive = nodeDetail?.status === 'NODE_STATUS_RUNNING';
   const showSignalForm = !!executionId && (isNodeActive || (isWaitNode && !nodeDetail));
 
@@ -234,11 +236,25 @@ const NodeDrawer: React.FC<NodeDrawerProps> = ({ executionId, nodeId, config, on
             </div>
           )}
 
+          {/* Behavior Config Editor */}
+          {isBehaviorNode && (
+            <div style={{ marginBottom: '16px' }}>
+              <strong style={{ display: 'block', marginBottom: '8px' }}>Behavior Editor</strong>
+              <BehaviorEditor 
+                config={config} 
+                onChange={(newConf) => {
+                  if (onConfigChange) onConfigChange({ ...config, ...newConf });
+                  setEditingConfig(JSON.stringify({ ...config, ...newConf }, null, 2));
+                }} 
+              />
+            </div>
+          )}
+
           {/* Config Data */}
           {config && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <strong style={{ display: 'block' }}>Config (Edit as JSON)</strong>
+                <strong style={{ display: 'block' }}>Raw Config (Edit as JSON)</strong>
                 <div>
                   <button
                     onClick={handleConfigSave}

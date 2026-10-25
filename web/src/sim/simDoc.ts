@@ -9,12 +9,19 @@ export type SimDoc = {
     maximize?: string;
     requirements?: string[];
   };
+  resources?: Record<string, number>;
+  arrivals?: {
+    distribution?: string;
+    parameters?: Record<string, number>;
+  };
 };
 
 export function parseSim(text: string): {
   worlds: Record<string, Record<string, unknown>>;
   latents: Record<string, unknown>;
   objective: { name?: string; value?: string; maximize?: string; requirements?: string[] };
+  resources: Record<string, number>;
+  arrivals: { distribution?: string; parameters?: Record<string, number> };
 } | Error {
   try {
     const doc = yaml.load(text) as SimDoc;
@@ -26,6 +33,8 @@ export function parseSim(text: string): {
       worlds: d.worlds || {},
       latents: d.latents || {},
       objective: d.objective || {},
+      resources: d.resources || {},
+      arrivals: d.arrivals || {},
     };
   } catch (e) {
     return e instanceof Error ? e : new Error(String(e));
@@ -136,5 +145,27 @@ export function setObjective(text: string, objective: { name?: string; value?: s
     doc = {};
   }
   doc.objective = objective;
+  return yaml.dump(doc, { skipInvalid: true, noRefs: true });
+}
+
+export function setResources(text: string, resources: Record<string, number>): string {
+  let doc: Record<string, unknown>;
+  try {
+    doc = (yaml.load(text) || {}) as Record<string, unknown>;
+  } catch {
+    doc = {};
+  }
+  doc.resources = resources;
+  return yaml.dump(doc, { skipInvalid: true, noRefs: true });
+}
+
+export function setArrivals(text: string, arrivals: { distribution?: string; parameters?: Record<string, number> }): string {
+  let doc: Record<string, unknown>;
+  try {
+    doc = (yaml.load(text) || {}) as Record<string, unknown>;
+  } catch {
+    doc = {};
+  }
+  doc.arrivals = arrivals;
   return yaml.dump(doc, { skipInvalid: true, noRefs: true });
 }

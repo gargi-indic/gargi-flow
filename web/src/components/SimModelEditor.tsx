@@ -8,6 +8,8 @@ import DecisionEditor from './DecisionEditor';
 import WorldsPanel from './WorldsPanel';
 import LatentsPanel from './LatentsPanel';
 import ObjectivePanel from './ObjectivePanel';
+import ResourcesPanel from './ResourcesPanel';
+import ArrivalsPanel from './ArrivalsPanel';
 import { SimulatePanel } from './SimulatePanel';
 import RegretPanel from './RegretPanel';
 import VoiPanel from './VoiPanel';
@@ -15,15 +17,17 @@ import FlipPointPanel from './FlipPointPanel';
 import PolicyCompare from './PolicyCompare';
 import RunReplay from './RunReplay';
 import ResultsBar from './ResultsBar';
+import ParetoReportPanel from './ParetoReportPanel';
 import { choicesByDecision, edgeMass } from '../sim/results';
 import type { SimulationReport } from '../sim/results';
 
 type DocName = keyof SimDocs;
 
-const TABS: { name: DocName | 'experiment' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay'; label: string }[] = [
+const TABS: { name: DocName | 'experiment' | 'pareto' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay'; label: string }[] = [
   { name: 'graph', label: 'graph.yaml' },
   { name: 'sim', label: 'sim.yaml' },
   { name: 'experiment', label: 'Simulate' },
+  { name: 'pareto', label: 'Pareto & Tournament' },
   { name: 'regret', label: 'Regret' },
   { name: 'voi', label: 'VOI' },
   { name: 'flip', label: 'Flip Points' },
@@ -37,7 +41,7 @@ type Props = {
 };
 
 export default function SimModelEditor({ docs, onChange }: Props) {
-  const [active, setActive] = useState<DocName | 'experiment' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay'>('sim');
+  const [active, setActive] = useState<DocName | 'experiment' | 'pareto' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay'>('sim');
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -189,6 +193,16 @@ const [summaryJson, setSummaryJson] = useState<SimulationReport | null>(null);
                   objective={parsedSim.objective}
                   onChange={(newSimText) => onChange({ ...docs, sim: newSimText })}
                 />
+                <ResourcesPanel
+                  text={docs.sim}
+                  resources={parsedSim.resources}
+                  onChange={(newSimText) => onChange({ ...docs, sim: newSimText })}
+                />
+                <ArrivalsPanel
+                  text={docs.sim}
+                  arrivals={parsedSim.arrivals}
+                  onChange={(newSimText) => onChange({ ...docs, sim: newSimText })}
+                />
               </>
             )}
           </div>
@@ -220,6 +234,8 @@ const [summaryJson, setSummaryJson] = useState<SimulationReport | null>(null);
                 }}
                 setExperimentId={setExperimentId}
               />
+            ) : active === 'pareto' ? (
+              <ParetoReportPanel summary={summaryJson} selectedWorld={selectedWorld} />
             ) : active === 'regret' ? (
               <RegretPanel regret={summaryJson?.reports?.regret} />
             ) : active === 'voi' ? (
