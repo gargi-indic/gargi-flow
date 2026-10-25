@@ -20,6 +20,7 @@ var (
 	_ engine.LockManager    = (*Store)(nil)
 	_ engine.EventPublisher = (*Store)(nil)
 	_ engine.ExecutionLog   = (*Store)(nil)
+	_ engine.PolicyStore    = (*Store)(nil)
 )
 
 // DefaultSubscriptionBufferSize is the default channel buffer capacity for event subscribers.
@@ -49,8 +50,10 @@ type stateRecord struct {
 }
 
 // Store is an in-memory, thread-safe implementation of engine.StateStore,
-// engine.LockManager, engine.EventPublisher, and engine.ExecutionLog.
+// engine.LockManager, engine.EventPublisher, engine.ExecutionLog, and engine.PolicyStore.
 type Store struct {
+	*PolicyStore
+
 	stateMu sync.RWMutex
 	states  map[engine.ExecutionID]*stateRecord
 
@@ -85,6 +88,7 @@ func WithSubscriptionBufferSize(size int) Option {
 // New creates a new in-memory Store with optional configuration options.
 func New(opts ...Option) *Store {
 	s := &Store{
+		PolicyStore:   NewPolicyStore(),
 		states:        make(map[engine.ExecutionID]*stateRecord),
 		locks:         make(map[string]*lockEntry),
 		subscribers:   make(map[uint64]*subscriber),
@@ -580,6 +584,8 @@ func (s *Store) Reset() {
 	s.logMu.Lock()
 	s.logs = make(map[engine.ExecutionID][]*engine.ExecutionLogEntry)
 	s.logMu.Unlock()
+
+	s.PolicyStore = NewPolicyStore()
 }
 
 // Stats holds operational statistics of the in-memory store.

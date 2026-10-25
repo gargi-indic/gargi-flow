@@ -21,6 +21,8 @@ func (f *fakeNodeContext) Config() map[string]any   { return f.config }
 func (f *fakeNodeContext) Inputs() map[string]any   { return f.inputs }
 func (f *fakeNodeContext) State() *GraphState       { return f.state }
 func (f *fakeNodeContext) Attempt() int             { return f.attempt }
+func (f *fakeNodeContext) PolicyID() string         { return "" }
+func (f *fakeNodeContext) PolicyVersion() string    { return "" }
 
 func TestNodeInterfaceHooksCanBeCalled(t *testing.T) {
 	// Just a compile-time and basic sanity test that we can call

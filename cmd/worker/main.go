@@ -83,9 +83,15 @@ func run(ctx context.Context, args []string, getenv func(string) (string, bool),
 	}
 	defer temporalClient.Close()
 
+	var policyStore engine.PolicyStore
+	if ps, ok := st.(engine.PolicyStore); ok {
+		policyStore = ps
+	}
+
 	reg := engine.NewRegistry()
 	if err := nodes.RegisterDefaults(reg, nodes.Dependencies{
-		Signals: orchestrator.NewTemporalSignalSource(),
+		Signals:     orchestrator.NewTemporalSignalSource(),
+		PolicyStore: policyStore,
 	}); err != nil {
 		return fmt.Errorf("registering default nodes: %w", err)
 	}

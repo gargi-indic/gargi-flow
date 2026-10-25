@@ -7,6 +7,7 @@ import (
 
 	"github.com/gargi-indic/gargi-flow/internal/graph"
 	"github.com/gargi-indic/gargi-flow/internal/nodes"
+	"github.com/gargi-indic/gargi-flow/internal/store/memory"
 	"github.com/gargi-indic/gargi-flow/pkg/engine"
 )
 
@@ -347,5 +348,318 @@ func TestSemanticValidation(t *testing.T) {
 	errs := graph.ValidateSemantics(def, reg)
 	if errs.Err() != nil {
 		t.Errorf("expected semantic validation to pass, got: %v", errs.Error())
+	}
+}
+
+func TestRegisterDefaults_WithPolicyStore(t *testing.T) {
+	ps := memory.NewPolicyStore()
+
+	// Without policy store, decision is not registered
+	regNoPS := engine.NewRegistry()
+	if err := nodes.RegisterDefaults(regNoPS, nodes.Dependencies{}); err != nil {
+		t.Fatalf("RegisterDefaults failed: %v", err)
+	}
+	if _, err := regNoPS.Instantiate("decision", map[string]any{"options": []any{"opt1"}}); err == nil {
+		t.Errorf("expected decision node to NOT be registered without PolicyStore")
+	}
+
+	// With policy store, decision is registered
+	regWithPS := engine.NewRegistry()
+	if err := nodes.RegisterDefaults(regWithPS, nodes.Dependencies{PolicyStore: ps}); err != nil {
+		t.Fatalf("RegisterDefaults failed: %v", err)
+	}
+	if _, err := regWithPS.Instantiate("decision", map[string]any{"options": []any{"opt1"}}); err != nil {
+		t.Errorf("expected decision node to be registered with PolicyStore, got: %v", err)
+	}
+}
+
+func TestPolicyDecisionChooser_Rules_Pinned(t *testing.T) {
+	ctx := context.Background()
+	ps := memory.NewPolicyStore()
+
+	policyYAML := `apiVersion: policy/v1
+id: credit-policy
+version: v1
+decisions:
+  check_credit:
+    rules:
+      - when: "score_node.output.score >= 0.8"
+        choose: approve
+      - else: reject
+`
+	_, err := ps.SavePolicy(ctx, &engine.PolicyRecord{
+		ID:       "credit-policy",
+		GraphID:  "test-graph",
+		Document: []byte(policyYAML),
+		Format:   "yaml",
+	})
+	if err != nil {
+		t.Fatalf("SavePolicy failed: %v", err)
+	}
+
+	reg := engine.NewRegistry()
+	if err := nodes.RegisterDefaults(reg, nodes.Dependencies{PolicyStore: ps}); err != nil {
+		t.Fatalf("RegisterDefaults failed: %v", err)
+	}
+
+	node, err := reg.Instantiate("decision", map[string]any{
+		"options":  []any{"approve", "reject"},
+		"observes": []any{"score_node.output.score"},
+		"policy":   "credit-policy",
+	})
+	if err != nil {
+		t.Fatalf("Instantiate failed: %v", err)
+	}
+
+	// Helper to create state with score
+	makeState := func(score float64) *engine.GraphState {
+		n1, _ := engine.NewNode("score_node", "passthrough", nil)
+		nd, _ := engine.NewNode("check_credit", "decision", nil)
+		g, _ := engine.NewGraph("test-graph", []*engine.Node{n1, nd}, nil)
+		st, _ := engine.NewGraphState("exec-1", g)
+
+		statusReady := engine.StatusReady
+		statusRunning := engine.StatusRunning
+		statusSucc := engine.StatusSucceeded
+
+		st, _ = st.Apply(engine.NewStateMutation("score_node", st.Version(), &statusReady, nil, nil, nil))
+		st, _ = st.Apply(engine.NewStateMutation("score_node", st.Version(), &statusRunning, nil, nil, nil))
+		st, _ = st.Apply(engine.NewStateMutation("score_node", st.Version(), &statusSucc, map[string]any{"score": score}, nil, nil))
+		return st
+	}
+
+	// 1. High score -> approve
+	stHigh := makeState(0.85)
+	ncHigh := &fakeNodeContext{
+		nodeID:        "check_credit",
+		state:         stHigh,
+		config:        map[string]any{"policy": "credit-policy"},
+		policyID:      "credit-policy",
+		policyVersion: "1",
+	}
+
+	mutHigh, err := node.Execute(ctx, ncHigh)
+	if err != nil {
+		t.Fatalf("Execute high score failed: %v", err)
+	}
+	if mutHigh.Set["choice"] != "approve" {
+		t.Errorf("expected choice 'approve', got %v", mutHigh.Set["choice"])
+	}
+
+	// 2. Low score -> reject
+	stLow := makeState(0.5)
+	ncLow := &fakeNodeContext{
+		nodeID:        "check_credit",
+		state:         stLow,
+		config:        map[string]any{"policy": "credit-policy"},
+		policyID:      "credit-policy",
+		policyVersion: "1",
+	}
+
+	mutLow, err := node.Execute(ctx, ncLow)
+	if err != nil {
+		t.Fatalf("Execute low score failed: %v", err)
+	}
+	if mutLow.Set["choice"] != "reject" {
+		t.Errorf("expected choice 'reject', got %v", mutLow.Set["choice"])
+	}
+}
+
+func TestPolicyDecisionChooser_Table_Pinned(t *testing.T) {
+	ctx := context.Background()
+	ps := memory.NewPolicyStore()
+
+	policyYAML := `apiVersion: policy/v1
+id: routing-policy
+version: v1
+decisions:
+  route_case:
+    table:
+      - observed:
+          region.output.code: "NA"
+        choose: fast_track
+      - observed:
+          region.output.code: "EU"
+        choose: compliance_review
+    default: standard
+`
+	_, err := ps.SavePolicy(ctx, &engine.PolicyRecord{
+		ID:       "routing-policy",
+		GraphID:  "test-graph",
+		Document: []byte(policyYAML),
+		Format:   "yaml",
+	})
+	if err != nil {
+		t.Fatalf("SavePolicy failed: %v", err)
+	}
+
+	reg := engine.NewRegistry()
+	if err := nodes.RegisterDefaults(reg, nodes.Dependencies{PolicyStore: ps}); err != nil {
+		t.Fatalf("RegisterDefaults failed: %v", err)
+	}
+
+	node, err := reg.Instantiate("decision", map[string]any{
+		"options":  []any{"fast_track", "compliance_review", "standard"},
+		"observes": []any{"region.output.code"},
+		"policy":   "routing-policy",
+	})
+	if err != nil {
+		t.Fatalf("Instantiate failed: %v", err)
+	}
+
+	makeState := func(code string) *engine.GraphState {
+		n1, _ := engine.NewNode("region", "passthrough", nil)
+		nd, _ := engine.NewNode("route_case", "decision", nil)
+		g, _ := engine.NewGraph("test-graph", []*engine.Node{n1, nd}, nil)
+		st, _ := engine.NewGraphState("exec-1", g)
+
+		statusReady := engine.StatusReady
+		statusRunning := engine.StatusRunning
+		statusSucc := engine.StatusSucceeded
+
+		st, _ = st.Apply(engine.NewStateMutation("region", st.Version(), &statusReady, nil, nil, nil))
+		st, _ = st.Apply(engine.NewStateMutation("region", st.Version(), &statusRunning, nil, nil, nil))
+		st, _ = st.Apply(engine.NewStateMutation("region", st.Version(), &statusSucc, map[string]any{"code": code}, nil, nil))
+		return st
+	}
+
+	// Match first row
+	ncNA := &fakeNodeContext{
+		nodeID:        "route_case",
+		state:         makeState("NA"),
+		config:        map[string]any{"policy": "routing-policy"},
+		policyID:      "routing-policy",
+		policyVersion: "1",
+	}
+	mut, err := node.Execute(ctx, ncNA)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+	if mut.Set["choice"] != "fast_track" {
+		t.Errorf("expected choice 'fast_track', got %v", mut.Set["choice"])
+	}
+
+	// Fallback to default
+	ncOther := &fakeNodeContext{
+		nodeID:        "route_case",
+		state:         makeState("APAC"),
+		config:        map[string]any{"policy": "routing-policy"},
+		policyID:      "routing-policy",
+		policyVersion: "1",
+	}
+	mutOther, err := node.Execute(ctx, ncOther)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+	if mutOther.Set["choice"] != "standard" {
+		t.Errorf("expected choice 'standard', got %v", mutOther.Set["choice"])
+	}
+}
+
+func TestPolicyDecisionChooser_ActiveDeploymentFallback(t *testing.T) {
+	ctx := context.Background()
+	ps := memory.NewPolicyStore()
+
+	policyYAML := `apiVersion: policy/v1
+id: active-policy
+version: v1
+decisions:
+  decide:
+    rules:
+      - else: opt_deployed
+`
+	_, err := ps.SavePolicy(ctx, &engine.PolicyRecord{
+		ID:       "active-policy",
+		GraphID:  "my-graph",
+		Document: []byte(policyYAML),
+		Format:   "yaml",
+	})
+	if err != nil {
+		t.Fatalf("SavePolicy failed: %v", err)
+	}
+
+	// Set deployment to Live
+	if err := ps.SetDeployment(ctx, &engine.PolicyDeployment{
+		GraphID:       "my-graph",
+		PolicyID:      "active-policy",
+		PolicyVersion: "1",
+		Mode:          engine.DeploymentLive,
+	}); err != nil {
+		t.Fatalf("SetDeployment failed: %v", err)
+	}
+
+	reg := engine.NewRegistry()
+	if err := nodes.RegisterDefaults(reg, nodes.Dependencies{PolicyStore: ps}); err != nil {
+		t.Fatalf("RegisterDefaults failed: %v", err)
+	}
+
+	node, err := reg.Instantiate("decision", map[string]any{
+		"options": []any{"opt_deployed", "opt_other"},
+		"policy":  "active-policy",
+	})
+	if err != nil {
+		t.Fatalf("Instantiate failed: %v", err)
+	}
+
+	nd, _ := engine.NewNode("decide", "decision", nil)
+	g, _ := engine.NewGraph("my-graph", []*engine.Node{nd}, nil)
+	st, _ := engine.NewGraphState("exec-1", g)
+
+	// Unpinned context (PolicyVersion is empty)
+	nc := &fakeNodeContext{
+		nodeID:        "decide",
+		state:         st,
+		config:        map[string]any{"policy": "active-policy"},
+		policyID:      "active-policy",
+		policyVersion: "",
+	}
+
+	mut, err := node.Execute(ctx, nc)
+	if err != nil {
+		t.Fatalf("Execute with unpinned live deployment failed: %v", err)
+	}
+	if mut.Set["choice"] != "opt_deployed" {
+		t.Errorf("expected opt_deployed, got %v", mut.Set["choice"])
+	}
+}
+
+func TestPolicyDecisionChooser_Errors(t *testing.T) {
+	ctx := context.Background()
+	ps := memory.NewPolicyStore()
+
+	reg := engine.NewRegistry()
+	_ = nodes.RegisterDefaults(reg, nodes.Dependencies{PolicyStore: ps})
+
+	node, _ := reg.Instantiate("decision", map[string]any{
+		"options": []any{"a", "b"},
+		"policy":  "missing-policy",
+	})
+
+	nd, _ := engine.NewNode("decide", "decision", nil)
+	g, _ := engine.NewGraph("err-graph", []*engine.Node{nd}, nil)
+	st, _ := engine.NewGraphState("exec-1", g)
+
+	// 1. Unpinned and no deployment exists
+	nc1 := &fakeNodeContext{
+		nodeID: "decide",
+		state:  st,
+		config: map[string]any{"policy": "missing-policy"},
+	}
+	_, err1 := node.Execute(ctx, nc1)
+	if err1 == nil {
+		t.Errorf("expected error when policy deployment not found")
+	}
+
+	// 2. Pinned version does not exist in store
+	nc2 := &fakeNodeContext{
+		nodeID:        "decide",
+		state:         st,
+		config:        map[string]any{"policy": "missing-policy"},
+		policyID:      "missing-policy",
+		policyVersion: "99",
+	}
+	_, err2 := node.Execute(ctx, nc2)
+	if err2 == nil {
+		t.Errorf("expected error when pinned policy not found in store")
 	}
 }

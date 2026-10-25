@@ -76,6 +76,8 @@ func (c *schedulerNodeContext) Config() map[string]any          { return c.confi
 func (c *schedulerNodeContext) Inputs() map[string]any          { return deepCopyAny(c.inputs).(map[string]any) }
 func (c *schedulerNodeContext) State() *engine.GraphState       { return c.state }
 func (c *schedulerNodeContext) Attempt() int                    { return c.attempt }
+func (c *schedulerNodeContext) PolicyID() string                { return "" }
+func (c *schedulerNodeContext) PolicyVersion() string           { return "" }
 
 // EvaluateStep evaluates all pending nodes, resolves preconditions, calls EvaluateReactivity,
 // performs cascading skip propagation, and returns the deterministic SchedulePlan along with the updated GraphState.

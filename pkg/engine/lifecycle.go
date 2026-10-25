@@ -28,6 +28,12 @@ type NodeContext interface {
 
 	// Attempt returns the 1-based execution attempt number for this node.
 	Attempt() int
+
+	// PolicyID returns the policy identifier pinned for this node execution, or empty if none.
+	PolicyID() string
+
+	// PolicyVersion returns the policy version pinned for this node execution, or empty if none.
+	PolicyVersion() string
 }
 
 // NodeInterface defines the lifecycle hooks for a reactive graph node.

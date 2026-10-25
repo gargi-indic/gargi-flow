@@ -17,6 +17,7 @@ import (
 // engine.LockManager, engine.EventPublisher, and engine.ExecutionLog depending on configuration.
 type CompositeStore interface {
 	engine.StateStore
+	engine.PolicyStore
 	io.Closer
 
 	// State returns the underlying state persistence adapter.
@@ -34,6 +35,10 @@ type CompositeStore interface {
 	// Experiments returns the simulation experiment store; it is never nil
 	// (an in-memory store when none is configured).
 	Experiments() sim.ExperimentStore
+
+	// Policies returns the policy store; it is never nil
+	// (an in-memory store when none is configured).
+	Policies() engine.PolicyStore
 }
 
 // compositeBase holds common references and implements the getter methods and Closer.
@@ -43,6 +48,7 @@ type compositeBase struct {
 	events  engine.EventPublisher
 	log     engine.ExecutionLog
 	exps    sim.ExperimentStore
+	policy  engine.PolicyStore
 	closers []func() error
 	closed  atomic.Bool
 }
@@ -53,6 +59,27 @@ func (b *compositeBase) Events() engine.EventPublisher { return b.events }
 func (b *compositeBase) Log() engine.ExecutionLog      { return b.log }
 
 func (b *compositeBase) Experiments() sim.ExperimentStore { return b.exps }
+func (b *compositeBase) Policies() engine.PolicyStore     { return b.policy }
+
+func (b *compositeBase) SavePolicy(ctx context.Context, record *engine.PolicyRecord) (*engine.PolicyRecord, error) {
+	return b.policy.SavePolicy(ctx, record)
+}
+
+func (b *compositeBase) GetPolicy(ctx context.Context, graphID string, policyID string, version string) (*engine.PolicyRecord, error) {
+	return b.policy.GetPolicy(ctx, graphID, policyID, version)
+}
+
+func (b *compositeBase) ListPolicies(ctx context.Context, graphID string) ([]*engine.PolicyRecord, error) {
+	return b.policy.ListPolicies(ctx, graphID)
+}
+
+func (b *compositeBase) SetDeployment(ctx context.Context, deployment *engine.PolicyDeployment) error {
+	return b.policy.SetDeployment(ctx, deployment)
+}
+
+func (b *compositeBase) GetDeployment(ctx context.Context, graphID string) (*engine.PolicyDeployment, error) {
+	return b.policy.GetDeployment(ctx, graphID)
+}
 
 func (b *compositeBase) Close() error {
 	if !b.closed.CompareAndSwap(false, true) {
@@ -135,17 +162,18 @@ func NewComposite(
 	log engine.ExecutionLog,
 	closers ...func() error,
 ) (CompositeStore, error) {
-	return newComposite(state, lock, events, log, nil, closers...)
+	return newComposite(state, lock, events, log, nil, nil, closers...)
 }
 
-// newComposite is NewComposite with an experiment store; nil selects a
-// fresh in-memory one.
+// newComposite is NewComposite with experiment and policy stores; nil selects
+// fresh in-memory ones.
 func newComposite(
 	state engine.StateStore,
 	lock engine.LockManager,
 	events engine.EventPublisher,
 	log engine.ExecutionLog,
 	exps sim.ExperimentStore,
+	policy engine.PolicyStore,
 	closers ...func() error,
 ) (CompositeStore, error) {
 	if state == nil {
@@ -154,6 +182,9 @@ func newComposite(
 	if exps == nil {
 		exps = memory.NewExperimentStore()
 	}
+	if policy == nil {
+		policy = memory.NewPolicyStore()
+	}
 
 	base := &compositeBase{
 		state:   state,
@@ -161,6 +192,7 @@ func newComposite(
 		events:  events,
 		log:     log,
 		exps:    exps,
+		policy:  policy,
 		closers: closers,
 	}
 

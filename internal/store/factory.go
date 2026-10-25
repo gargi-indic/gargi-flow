@@ -21,6 +21,7 @@ type Builder struct {
 	eventPublisher engine.EventPublisher
 	executionLog   engine.ExecutionLog
 	experiments    sim.ExperimentStore
+	policyStore    engine.PolicyStore
 	closers        []func() error
 }
 
@@ -60,6 +61,13 @@ func (b *Builder) WithExperimentStore(e sim.ExperimentStore) *Builder {
 	return b
 }
 
+// WithPolicyStore injects the policy store adapter. When none is injected
+// the composite uses a fresh in-memory store.
+func (b *Builder) WithPolicyStore(p engine.PolicyStore) *Builder {
+	b.policyStore = p
+	return b
+}
+
 // WithCloser registers a cleanup closer function to be invoked when the CompositeStore is closed.
 func (b *Builder) WithCloser(closer func() error) *Builder {
 	if closer != nil {
@@ -76,6 +84,7 @@ func (b *Builder) Build() (CompositeStore, error) {
 		b.eventPublisher,
 		b.executionLog,
 		b.experiments,
+		b.policyStore,
 		b.closers...,
 	)
 }
@@ -195,6 +204,23 @@ func (c *adapterCache) experiments(driver string) (sim.ExperimentStore, error) {
 	}
 }
 
+func (c *adapterCache) policies(driver string) (engine.PolicyStore, error) {
+	switch driver {
+	case "memory":
+		return memory.NewPolicyStore(), nil
+	case "postgres":
+		a, err := c.get("postgres")
+		if err != nil {
+			return nil, fmt.Errorf("configuring policies capability with driver %q: %w", driver, err)
+		}
+		return postgres.NewPolicyStore(a.(*postgres.Store).Pool()), nil
+	case "redis", "neo4j":
+		return nil, fmt.Errorf("%s does not support capability 'policies' (allowed: memory, postgres)", driver)
+	default:
+		return nil, fmt.Errorf("invalid store policies capability driver: %s. Allowed values: memory, postgres", driver)
+	}
+}
+
 // New constructs and wires a CompositeStore based on the provided StoreConfig.
 // It acts as the composition root for all persistence capabilities.
 // If misconfigured or if backend connection fails, it fails fast and cleans up any opened resources.
@@ -270,12 +296,18 @@ func New(ctx context.Context, cfg config.StoreConfig) (CompositeStore, error) {
 		return nil, err
 	}
 
+	policies, err := cache.policies(cfg.EffectivePoliciesDriver())
+	if err != nil {
+		return nil, err
+	}
+
 	composite, err := newComposite(
 		stateStore,
 		lockManager,
 		eventPublisher,
 		executionLog,
 		experiments,
+		policies,
 		cache.closers...,
 	)
 	if err != nil {

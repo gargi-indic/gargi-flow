@@ -106,7 +106,8 @@ func TestFullExecutionPipeline_SubmitStoreAndQuery(t *testing.T) {
 
 	reg := engine.NewRegistry()
 	require.NoError(t, nodes.RegisterDefaults(reg, nodes.Dependencies{
-		Signals: orchestrator.NewTemporalSignalSource(),
+		Signals:     orchestrator.NewTemporalSignalSource(),
+		PolicyStore: memStore,
 	}))
 
 	na := orchestrator.NewNodeActivities(reg)

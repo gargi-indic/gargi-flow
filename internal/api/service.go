@@ -46,8 +46,14 @@ func NewServer(
 	if logger == nil {
 		logger = slog.Default()
 	}
+	var policyStore engine.PolicyStore
+	if ps, ok := st.(engine.PolicyStore); ok {
+		policyStore = ps
+	}
 	reg := engine.NewRegistry()
-	_ = nodes.RegisterDefaults(reg, nodes.Dependencies{})
+	_ = nodes.RegisterDefaults(reg, nodes.Dependencies{
+		PolicyStore: policyStore,
+	})
 
 	return &Server{
 		temporalClient: tc,
@@ -204,10 +210,22 @@ func (s *Server) SubmitExecution(ctx context.Context, req *gargiv1.SubmitExecuti
 		inputs = req.GetInputs().AsMap()
 	}
 
+	var pinnedPolicies map[string]string
+	if policyStore, ok := s.store.(engine.PolicyStore); ok {
+		if dep, err := policyStore.GetDeployment(ctx, def.ID); err == nil && dep != nil {
+			if dep.Mode == engine.DeploymentLive {
+				pinnedPolicies = map[string]string{
+					dep.PolicyID: dep.PolicyVersion,
+				}
+			}
+		}
+	}
+
 	wfInput := orchestrator.GraphWorkflowInput{
-		ExecutionID:  engine.ExecutionID(execID),
-		Definition:   def,
-		InitialState: inputs,
+		ExecutionID:    engine.ExecutionID(execID),
+		Definition:     def,
+		InitialState:   inputs,
+		PinnedPolicies: pinnedPolicies,
 	}
 
 	wfOptions := client.StartWorkflowOptions{

@@ -239,6 +239,8 @@ func (c *mockNodeCtx) Config() map[string]any          { return c.config }
 func (c *mockNodeCtx) Inputs() map[string]any          { return nil }
 func (c *mockNodeCtx) State() *engine.GraphState       { return c.state }
 func (c *mockNodeCtx) Attempt() int                    { return 1 }
+func (c *mockNodeCtx) PolicyID() string                { return "" }
+func (c *mockNodeCtx) PolicyVersion() string           { return "" }
 
 func TestReactivityDeterminism(t *testing.T) {
 	var canonicalState, canonicalEvents string
