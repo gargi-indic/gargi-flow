@@ -416,3 +416,101 @@ func TestRunner_SkipsExperimentFinishedInStore(t *testing.T) {
 	require.True(t, rec.StartedAt.IsZero(), "it never ran")
 	require.ErrorIs(t, h.runner.Cancel(context.Background(), queued.ID), jobs.ErrNotActive)
 }
+
+func TestRunner_KillAndRestart(t *testing.T) {
+	// Runs 2 chunks (2000 runs) with 1 policy.
+	const runs = 2 * experiment.ChunkSize
+	expDef := loanExperiment("monte_carlo", runs, onePolicy)
+
+	// 1. Run uninterrupted in harness 1 to obtain reference report.
+	h1 := newHarness(t, jobs.Options{RunWorkers: 2, ProgressInterval: 10 * time.Millisecond})
+	rec1 := h1.mustSubmit(t, expDef)
+	done1 := h1.waitTerminal(t, rec1.ID)
+	require.Equal(t, sim.ExperimentSucceeded, done1.Status, done1.Error)
+	var rep1 experiment.Report
+	require.NoError(t, json.Unmarshal(done1.Report, &rep1))
+
+	// 2. Start experiment in a fresh store and interrupt midway.
+	st := newFakeStore()
+	_, err := st.SaveModel(context.Background(), loanBundle(t))
+	require.NoError(t, err)
+	reg, err := jobs.NewRegistry()
+	require.NoError(t, err)
+
+	r1, err := jobs.New(st, reg, jobs.Options{
+		RunWorkers:       1,
+		ProgressInterval: 10 * time.Millisecond,
+		Now:              time.Now,
+	})
+	require.NoError(t, err)
+
+	rec2, err := r1.Submit(context.Background(), sim.ExperimentRecord{
+		ID:         "kill-restart-exp",
+		Model:      sim.ModelRef{ID: "loan"},
+		Definition: expDef,
+		Format:     "yaml",
+	})
+	require.NoError(t, err)
+
+	waitRec := func(id string, cond func(sim.ExperimentRecord) bool) sim.ExperimentRecord {
+		t.Helper()
+		deadline := time.Now().Add(waitTimeout)
+		for {
+			rec, err := st.GetExperiment(context.Background(), id)
+			require.NoError(t, err)
+			if cond(rec) {
+				return rec
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("experiment %s: timed out; last status %s error %q checkpoint %+v", id, rec.Status, rec.Error, rec.Checkpoint)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+
+	// Wait until progress shows at least 1 completed chunk, then cancel.
+	waitRec(rec2.ID, func(r sim.ExperimentRecord) bool {
+		return r.Checkpoint != nil && r.Checkpoint.CompletedChunks > 0 && r.Checkpoint.CompletedChunks < r.Checkpoint.TotalChunks
+	})
+
+	require.NoError(t, r1.Cancel(context.Background(), rec2.ID))
+	cancelledRec := waitRec(rec2.ID, func(r sim.ExperimentRecord) bool {
+		return r.Status.Terminal()
+	})
+	require.Equal(t, sim.ExperimentCancelled, cancelledRec.Status)
+	require.NotNil(t, cancelledRec.Checkpoint)
+	require.Greater(t, cancelledRec.Checkpoint.CompletedChunks, 0)
+	require.Less(t, cancelledRec.Checkpoint.CompletedChunks, cancelledRec.Checkpoint.TotalChunks)
+
+	// Close runner 1 ("killed").
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	_ = r1.Close(ctx)
+	cancel()
+
+	// 3. "Restart" with a new runner against the same store.
+	r2, err := jobs.New(st, reg, jobs.Options{
+		RunWorkers:       2,
+		ProgressInterval: 10 * time.Millisecond,
+		Now:              time.Now,
+	})
+	require.NoError(t, err)
+	defer func() {
+		c, can := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		_ = r2.Close(c)
+		can()
+	}()
+
+	require.NoError(t, r2.Resume(context.Background(), rec2.ID))
+
+	doneRec := waitRec(rec2.ID, func(r sim.ExperimentRecord) bool {
+		return r.Status.Terminal()
+	})
+	require.Equal(t, sim.ExperimentSucceeded, doneRec.Status, doneRec.Error)
+	require.Empty(t, doneRec.Error)
+
+	var rep2 experiment.Report
+	require.NoError(t, json.Unmarshal(doneRec.Report, &rep2))
+
+	// 4. Report and metrics must match the uninterrupted run exactly!
+	require.Equal(t, rep1, rep2)
+}

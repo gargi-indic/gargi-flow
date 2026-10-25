@@ -166,6 +166,16 @@ func runCompiledExperiment(ctx context.Context, exp *experiment.CompiledExperime
 			opts.Progress(sim.Progress{Done: done, Total: total})
 		}
 	}
+	if opts.RecordSink != nil {
+		runOpts.RecordSink = opts.RecordSink
+	} else if opts.ExportJSONL != "" {
+		f, err := os.Create(opts.ExportJSONL)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = f.Close() }()
+		runOpts.RecordSink = f
+	}
 	report, err := experiment.Run(ctx, exp, src, runOpts)
 	if err != nil {
 		return nil, err
@@ -194,4 +204,9 @@ func (*Local) ExplainPolicy(_ context.Context, ref string) (string, error) {
 		return "", err
 	}
 	return explain.Explain(p), nil
+}
+
+// Cancel is not supported by Local, which keeps no experiment store.
+func (*Local) Cancel(_ context.Context, experimentID string) error {
+	return fmt.Errorf("cancel experiment %q: local backend keeps no experiment store: %w", experimentID, ErrUnsupported)
 }

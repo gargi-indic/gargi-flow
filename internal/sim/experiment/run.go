@@ -2,8 +2,10 @@ package experiment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"runtime"
 	"sort"
 	"sync"
@@ -64,6 +66,16 @@ type Options struct {
 	// serialized, done is non-decreasing, and on success the final call has
 	// done == total.
 	Progress func(done, total int)
+	// ResumeFrom is the checkpoint to resume execution from.
+	ResumeFrom *sim.ExperimentCheckpoint
+	// Checkpoint, when set, is called after a chunk finishes to allow
+	// persisting progress.
+	Checkpoint func(sim.ExperimentCheckpoint)
+	// RecordSink, when set, receives each evaluated episode record encoded as
+	// JSONL. Concurrent writes are serialized.
+	RecordSink io.Writer
+	// ChunkSize overrides the default chunk size (1000).
+	ChunkSize int
 }
 
 // Report is the JSON-stable result of an experiment.
@@ -166,15 +178,16 @@ type Estimates struct {
 
 // job identifies one chunk of replications of one world.
 type job struct {
-	world, chunk int
+	World int `json:"world"`
+	Chunk int `json:"chunk"`
 }
 
 // chunkResult is the summary of one job, one entry per policy.
 type chunkResult struct {
-	job      job
-	stats    []*policyStats
-	episodes int
-	err      error
+	Job      job            `json:"job"`
+	Stats    []*policyStats `json:"stats"`
+	Episodes int            `json:"episodes"`
+	Err      error          `json:"-"`
 }
 
 // Run evaluates every policy of src in every world of exp with the
@@ -304,17 +317,23 @@ func Run(ctx context.Context, exp *CompiledExperiment, src PolicySource, opts Op
 	runs := 0
 	var mcReplications [][][]float64
 	if useMC {
+		chunkSize := ChunkSize
+		if opts.ChunkSize > 0 {
+			chunkSize = opts.ChunkSize
+		}
 		r := &runner{
-			exp:      exp,
-			policies: policies,
-			spec:     spec,
-			runs:     exp.Def.Runs,
-			chunks:   (exp.Def.Runs + ChunkSize - 1) / ChunkSize,
+			exp:        exp,
+			policies:   policies,
+			spec:       spec,
+			runs:       exp.Def.Runs,
+			chunkSize:  chunkSize,
+			chunks:     (exp.Def.Runs + chunkSize - 1) / chunkSize,
+			recordSink: opts.RecordSink,
 		}
 		if !useExact {
 			r.covers = covers
 		}
-		results, err := r.run(ctx, workers, progress(exactTotal))
+		results, err := r.run(ctx, workers, opts, progress(exactTotal))
 		if err != nil {
 			return nil, err
 		}
@@ -418,14 +437,17 @@ type runner struct {
 	policies []sim.Policy
 	spec     *evalSpec
 	// covers, when set, holds the CVaR tail cover of each world.
-	covers []float64
-	runs   int
-	chunks int
+	covers     []float64
+	runs       int
+	chunkSize  int
+	chunks     int
+	recordSink io.Writer
+	recordMu   sync.Mutex
 }
 
 // run evaluates every job on a pool of workers and returns the chunk
 // summaries indexed by [world][chunk].
-func (r *runner) run(parent context.Context, workers int, progress func(done, total int)) ([][]*chunkResult, error) {
+func (r *runner) run(parent context.Context, workers int, opts Options, progress func(done, total int)) ([][]*chunkResult, error) {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 
@@ -433,6 +455,51 @@ func (r *runner) run(parent context.Context, workers int, progress func(done, to
 	workers = min(workers, jobs)
 	out := make(chan chunkResult, workers)
 	var next atomic.Int64
+
+	results := make([][]*chunkResult, len(r.exp.Worlds))
+	for w := range results {
+		results[w] = make([]*chunkResult, r.chunks)
+	}
+	total := len(r.exp.Worlds) * r.runs * len(r.policies)
+	done := 0
+	completedChunks := 0
+
+	completedJobs := make([]bool, jobs)
+	if opts.ResumeFrom != nil && len(opts.ResumeFrom.PartialResults) > 0 {
+		if err := json.Unmarshal(opts.ResumeFrom.PartialResults, &results); err == nil {
+			completedChunks = opts.ResumeFrom.CompletedChunks
+			done = opts.ResumeFrom.EvaluatedRuns
+			for w := range results {
+				for c := range results[w] {
+					if results[w][c] != nil {
+						completedJobs[w*r.chunks+c] = true
+					}
+				}
+			}
+			if completedChunks == 0 {
+				for w := range results {
+					for c := range results[w] {
+						if results[w][c] != nil {
+							completedChunks++
+							done += results[w][c].Episodes
+						}
+					}
+				}
+			}
+			if progress != nil {
+				progress(done, total)
+			}
+		}
+	}
+	firstIncomplete := jobs
+	for i := 0; i < jobs; i++ {
+		if !completedJobs[i] {
+			firstIncomplete = i
+			break
+		}
+	}
+	next.Store(int64(firstIncomplete))
+
 	var wg sync.WaitGroup
 	for range workers {
 		wg.Go(func() {
@@ -441,10 +508,13 @@ func (r *runner) run(parent context.Context, workers int, progress func(done, to
 				if i >= jobs {
 					return
 				}
-				j := job{world: i / r.chunks, chunk: i % r.chunks}
+				if completedJobs[i] {
+					continue
+				}
+				j := job{World: i / r.chunks, Chunk: i % r.chunks}
 				res := r.runChunk(ctx, j)
 				out <- res
-				if res.err != nil {
+				if res.Err != nil {
 					return
 				}
 			}
@@ -455,17 +525,11 @@ func (r *runner) run(parent context.Context, workers int, progress func(done, to
 		close(out)
 	}()
 
-	results := make([][]*chunkResult, len(r.exp.Worlds))
-	for w := range results {
-		results[w] = make([]*chunkResult, r.chunks)
-	}
-	total := len(r.exp.Worlds) * r.runs * len(r.policies)
-	done := 0
 	var firstErr error
 	for res := range out {
-		if res.err != nil {
+		if res.Err != nil {
 			if firstErr == nil {
-				firstErr = res.err
+				firstErr = res.Err
 				cancel()
 			}
 			continue
@@ -473,8 +537,18 @@ func (r *runner) run(parent context.Context, workers int, progress func(done, to
 		if firstErr != nil {
 			continue
 		}
-		results[res.job.world][res.job.chunk] = &res
-		done += res.episodes
+		results[res.Job.World][res.Job.Chunk] = &res
+		done += res.Episodes
+		completedChunks++
+		if opts.Checkpoint != nil {
+			data, _ := json.Marshal(results)
+			opts.Checkpoint(sim.ExperimentCheckpoint{
+				CompletedChunks: completedChunks,
+				TotalChunks:     jobs,
+				EvaluatedRuns:   done,
+				PartialResults:  data,
+			})
+		}
 		if progress != nil {
 			progress(done, total)
 		}
@@ -491,28 +565,43 @@ func (r *runner) run(parent context.Context, workers int, progress func(done, to
 // runChunk runs every policy over the replications of one chunk of one
 // world, sequentially and in replication order.
 func (r *runner) runChunk(ctx context.Context, j job) chunkResult {
-	res := chunkResult{job: j, stats: make([]*policyStats, len(r.policies))}
-	for i := range res.stats {
-		res.stats[i] = newPolicyStats(r.spec)
+	res := chunkResult{Job: j, Stats: make([]*policyStats, len(r.policies))}
+	for i := range res.Stats {
+		res.Stats[i] = newPolicyStats(r.spec)
 	}
-	world := r.exp.Worlds[j.world]
-	first := j.chunk * ChunkSize
-	last := min(first+ChunkSize, r.runs)
+	world := r.exp.Worlds[j.World]
+	first := j.Chunk * r.chunkSize
+	last := min(first+r.chunkSize, r.runs)
 	for rep := first; rep < last; rep++ {
 		seed := sim.Seed(r.exp.Def.Seed, world.ID, rep)
 		retain := rep < MaxRetained
 		for i, p := range r.policies {
 			if err := ctx.Err(); err != nil {
-				res.err = err
+				res.Err = err
 				return res
 			}
 			rec, err := kernel.RunEpisode(ctx, r.exp.Model, world, p, sampler.NewMonteCarlo(seed), kernel.Options{Replication: uint64(rep)})
 			if err != nil {
-				res.err = fmt.Errorf("experiment: world %q policy %q replication %d: %w", world.ID, p.ID(), rep, err)
+				res.Err = fmt.Errorf("experiment: world %q policy %q replication %d: %w", world.ID, p.ID(), rep, err)
 				return res
 			}
-			res.stats[i].add(rec, r.spec, retain)
-			res.episodes++
+			if r.recordSink != nil {
+				data, err := json.Marshal(rec)
+				if err != nil {
+					res.Err = fmt.Errorf("experiment: export jsonl: %w", err)
+					return res
+				}
+				data = append(data, '\n')
+				r.recordMu.Lock()
+				_, writeErr := r.recordSink.Write(data)
+				r.recordMu.Unlock()
+				if writeErr != nil {
+					res.Err = fmt.Errorf("experiment: export jsonl: %w", writeErr)
+					return res
+				}
+			}
+			res.Stats[i].add(rec, r.spec, retain)
+			res.Episodes++
 		}
 	}
 	return res
@@ -529,7 +618,7 @@ func (r *runner) replications(results [][]*chunkResult) [][][]float64 {
 		for w := range nw {
 			out[p][w] = make([]float64, 0, r.runs)
 			for _, chunk := range results[w] {
-				out[p][w] = append(out[p][w], chunk.stats[p].objective.values...)
+				out[p][w] = append(out[p][w], chunk.Stats[p].Objective.Values...)
 			}
 		}
 	}
@@ -551,8 +640,8 @@ func (r *runner) estimates(results [][]*chunkResult) [][]estimatePair {
 		for i := range r.policies {
 			agg := newPolicyStats(r.spec)
 			for _, chunk := range results[w] {
-				agg.merge(chunk.stats[i])
-				chunk.stats[i] = nil // release retained values early
+				agg.merge(chunk.Stats[i])
+				chunk.Stats[i] = nil // release retained values early
 			}
 			out[w][i] = agg.estimates(r.spec, cover)
 		}
