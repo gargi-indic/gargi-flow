@@ -57,12 +57,9 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
    - Step 2: **#161** Production decision node with pinned policy versions (`agent/jules` session 12232395958535267137 hit 30m; fallback to subagent `Decision Node Engineer`) — ✅ **merged** PR #223 (`78c682a`), closed.
    - Step 3: **#162** DeployPolicy API with shadow and live modes (`agent/jules` session 4292006874581742639 hit 30m; fallback to subagent `Deploy Policy Engineer`) — ✅ **merged** PR #224 (`dbb3fda`), closed.
    - Step 4: **#163** Outcome ingestion API (`agent/jules` session 9761812240451462800 hit 30m; fallback to subagent `Outcome Ingestion Engineer`) — ✅ **merged** PR #225 (`e75c903`), closed.
-   - Step 5: **#164** Calibration from executions and outcomes (`agent/claude`) — ⏳ **starting**.
-   - Step 3: **#162** DeployPolicy API with shadow and live modes (`agent/jules`) — ⏳ pending.
-   - Step 4: **#163** Outcome ingestion API (`agent/jules`) — ⏳ pending.
-   - Step 5: **#164** Calibration from executions and outcomes (`agent/claude`) — ⏳ pending.
-   - Step 6: **#165** Drift report: predicted vs observed per policy version (`agent/claude`) — ⏳ pending.
+   - Step 5: **#164** Calibration from executions and outcomes (`agent/jules` session 8640701127747043618 hit 30m; fallback to subagent `Calibration Engineer`) — ✅ **merged** PR #226 (`b4917f6`), closed.
+   - Step 6: **#165** Drift report: predicted vs observed per policy version (`agent/jules`) — ⏳ **starting**.
    - Step 7: **#166** Temporal fidelity check: gargi sim verify (`agent/jules`) — ⏳ pending.
    - Step 8: **#167** Canvas: Deploy mode and live drift overlay (`agent/claude`) — ⏳ pending.
 2. **Next immediate action:**
-   - Dispatch Issue #161 to Jules with 30-min monitoring/fallback rule.
+   - Dispatch Issue #165 to Jules with 30-min monitoring/fallback rule.
