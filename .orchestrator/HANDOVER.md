@@ -56,7 +56,8 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
    - Step 1: **#160** PolicyStore contract and adapters (`agent/jules` session 8721925365230232836) — ✅ **merged** PR #222 (`a5d8909`), closed.
    - Step 2: **#161** Production decision node with pinned policy versions (`agent/jules` session 12232395958535267137 hit 30m; fallback to subagent `Decision Node Engineer`) — ✅ **merged** PR #223 (`78c682a`), closed.
    - Step 3: **#162** DeployPolicy API with shadow and live modes (`agent/jules` session 4292006874581742639 hit 30m; fallback to subagent `Deploy Policy Engineer`) — ✅ **merged** PR #224 (`dbb3fda`), closed.
-   - Step 4: **#163** Outcome ingestion API (`agent/jules`) — ⏳ **starting**.
+   - Step 4: **#163** Outcome ingestion API (`agent/jules` session 9761812240451462800 hit 30m; fallback to subagent `Outcome Ingestion Engineer`) — ✅ **merged** PR #225 (`e75c903`), closed.
+   - Step 5: **#164** Calibration from executions and outcomes (`agent/claude`) — ⏳ **starting**.
    - Step 3: **#162** DeployPolicy API with shadow and live modes (`agent/jules`) — ⏳ pending.
    - Step 4: **#163** Outcome ingestion API (`agent/jules`) — ⏳ pending.
    - Step 5: **#164** Calibration from executions and outcomes (`agent/claude`) — ⏳ pending.
