@@ -69,7 +69,7 @@ type GetExperimentInput struct {
 // GetReportInput specifies the arguments for get_report.
 type GetReportInput struct {
 	ID   string `json:"id" jsonschema:"the experiment ID"`
-	Kind string `json:"kind" jsonschema:"kind of report (summary, regret, robust, pareto, voi, flipPoints, pathHeatmap, policyTree)"`
+	Kind string `json:"kind" jsonschema:"kind of report (summary, regret, robust, tournament, pareto, voi, flipPoints, pathHeatmap, policyTree)"`
 }
 
 // ExplainPolicyInput specifies the arguments for explain_policy.
@@ -244,6 +244,8 @@ func (s *workspaceServer) getReport(_ context.Context, _ *mcp.CallToolRequest, i
 			data, err = json.Marshal(rec.report.Reports.Regret)
 		case "robust":
 			data, err = json.Marshal(rec.report.Reports.Robust)
+		case "tournament":
+			data, err = json.Marshal(rec.report.Reports.Tournament)
 		case "pareto":
 			data, err = json.Marshal(rec.report.Reports.Pareto)
 		case "voi":

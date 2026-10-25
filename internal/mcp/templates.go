@@ -71,17 +71,19 @@ func listTemplates() (string, error) {
 	return string(b), nil
 }
 
-// CopyTemplate copies an embedded template (canary or loan) into destDir.
+// CopyTemplate copies an embedded template (canary, loan, or claims) into destDir.
 func CopyTemplate(name, destDir string) error {
 	switch name {
 	case "canary":
 		name = "canary-rollout"
 	case "loan":
 		name = "loan-underwriting"
+	case "claims":
+		name = "claims-triage"
 	}
 	srcDir := filepath.Join("templates", name)
 	if _, err := fs.Stat(templatesFS, srcDir); err != nil {
-		return fmt.Errorf("unknown template %q (available: canary, loan)", name)
+		return fmt.Errorf("unknown template %q (available: canary, loan, claims)", name)
 	}
 
 	return fs.WalkDir(templatesFS, srcDir, func(p string, d fs.DirEntry, err error) error {

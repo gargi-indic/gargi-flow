@@ -1,0 +1,29 @@
+apiVersion: graph/v1
+id: claims-triage
+nodes:
+  - id: intake
+    type: passthrough
+  - id: ai_assess
+    type: http_call
+    config: {url: "https://agent.example.internal/v1/assess", method: POST}
+  - id: route
+    type: decision
+    joinMode: any_of
+    config: {options: [auto_pay, adjuster, fraud_unit], observes: [ai_assess.output.confidence]}
+  - id: adjuster
+    type: wait_for_signal
+    config: {signal: review_done}
+  - id: payout
+    type: passthrough
+    joinMode: any_of
+  - id: fraud_unit
+    type: passthrough
+    joinMode: any_of
+edges:
+  - {from: intake, to: ai_assess}
+  - {from: ai_assess, to: route}
+  - {from: route, to: payout, condition: "upstream.output.choice == 'auto_pay'"}
+  - {from: route, to: adjuster, condition: "upstream.output.choice == 'adjuster'"}
+  - {from: route, to: fraud_unit, condition: "upstream.output.choice == 'fraud_unit'"}
+  - {from: adjuster, to: payout, condition: "upstream.output.result == 'approved'"}
+  - {from: adjuster, to: fraud_unit, condition: "upstream.output.result == 'flagged'"}

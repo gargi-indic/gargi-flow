@@ -1,0 +1,18 @@
+apiVersion: experiment/v1
+model: ./sim.yaml
+worlds: [normal, cat_surge]
+policies:
+  files:
+    - policies/rules.yaml
+    - policies/matrix.yaml
+    - policies/agent.yaml
+evaluator: monte_carlo
+runs: 100
+seed: 42
+top: 5
+reports:
+  - "pareto:total_cost:min,p95_duration:min"
+  - "tournament"
+world_prior:
+  normal: 0.8
+  cat_surge: 0.2

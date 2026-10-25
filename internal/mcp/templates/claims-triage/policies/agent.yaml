@@ -1,0 +1,19 @@
+apiVersion: policy/v1
+id: agent-policy
+version: "1"
+params:
+  theta:
+    min: 0.8
+    max: 1.0
+    default: 0.98
+  adjusters:
+    values: [30]
+    default: 30
+decisions:
+  route:
+    rules:
+      - when: "ai_assess.output.confidence >= params.theta"
+        choose: auto_pay
+      - when: "ai_assess.output.confidence <= 0.5"
+        choose: fraud_unit
+      - else: adjuster

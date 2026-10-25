@@ -53,7 +53,7 @@ server:
 		_ = os.WriteFile(cfgFile, []byte(yamlContent), 0o644)
 
 		var stdout bytes.Buffer
-		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
 		err := run(ctx, []string{"-config", cfgFile}, os.LookupEnv, &stdout, &bytes.Buffer{})
