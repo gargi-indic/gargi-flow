@@ -251,13 +251,15 @@ func TestMigrations_SimulationDown(t *testing.T) {
 	}
 	ver, dirty, err := st.MigrationVersion(ctx)
 	require.NoError(t, err)
-	require.Equal(t, int64(2), ver)
+	require.Equal(t, int64(3), ver)
 	require.False(t, dirty)
 	simTables := []string{"sim_models", "sim_model_policies", "sim_experiments", "sim_reports"}
 	for _, name := range simTables {
 		require.True(t, tableExists(name), name)
 	}
 
+	// Migrate down twice since we are at version 3
+	require.NoError(t, st.MigrateDown(ctx, false))
 	require.NoError(t, st.MigrateDown(ctx, false))
 	ver, _, err = st.MigrationVersion(ctx)
 	require.NoError(t, err)
@@ -270,7 +272,7 @@ func TestMigrations_SimulationDown(t *testing.T) {
 	require.NoError(t, st.MigrateUp(ctx))
 	ver, _, err = st.MigrationVersion(ctx)
 	require.NoError(t, err)
-	require.Equal(t, int64(2), ver)
+	require.Equal(t, int64(3), ver)
 	for _, name := range simTables {
 		assert.True(t, tableExists(name), name)
 	}
@@ -314,5 +316,5 @@ func TestMigrations_ConcurrentUp(t *testing.T) {
 	}
 	var count int
 	require.NoError(t, admin.Pool().QueryRow(ctx, fmt.Sprintf("SELECT count(*) FROM %s.schema_migrations WHERE NOT dirty", schema)).Scan(&count))
-	require.Equal(t, 2, count)
+	require.Equal(t, 3, count)
 }
