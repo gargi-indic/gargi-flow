@@ -50,7 +50,7 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
 
 **Epic #136 exit criterion verified:** an agent connected over MCP builds the canary-rollout case (case 3 in ARCHITECTURE.md) from a prompt, runs it, and extracts a Pareto set of policies, all verified by `TestCanary_AgentWalkthrough` and `TestCanaryGolden_ParetoSet`.
 
-## 4. Current state and immediate resume steps (2026-10-25, ~05:55 UTC)
+## 4. Current state and immediate resume steps (2026-10-25, ~07:05 UTC)
 0. **Epic #136 closed!** All 11 tasks merged, exit criteria verified, PR #211 squash-merged into `main` (`3731a2a`).
 1. **Active epic:** **#148 Simulation P2: coupled simulation, optimization and agents**.
    - Step 1: **#149** Kernel mode B: arrivals, shared resources and queues (`agent/jules` → fallback) — ✅ **merged** PR #212 (`500068f`), closed.
@@ -59,6 +59,7 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
    - Step 4: **#152** Bayesian optimizer (TPE) (`agent/jules` session 2914001294866577741 hit 30m fallback → sub-agent) — ✅ **merged** PR #216 (`ee11006`), closed.
    - Step 5: **#153** Agent behaviors and agent policies (`agent/jules` session 14452285284536427754 hit 30m fallback → sub-agent) — ✅ **merged** PR #217 (`3ea5ac2`), closed.
    - Step 6: **#154** Tournament report for policies and agents (`agent/jules` session 15545179576215189747 hit 30m fallback → sub-agent) — ✅ **merged** PR #218 (`04a7d27`), closed.
-   - Step 7: **#155** Experiment scaling: chunking, checkpoints, cancellation, sample export (`agent/jules`) — ⏳ **starting**.
+   - Step 7: **#155** Experiment scaling: chunking, checkpoints, cancellation, sample export (`agent/jules` session 15861662702259276842 FAILED → sub-agent) — ✅ **merged** PR #219 (`662ecfc`), closed.
+   - Step 8: **#156** Claims triage model template and golden test (`agent/claude` / Jules fallback) — ⏳ **starting**.
 2. **Next immediate action:**
-   - Dispatch Issue #155 to Jules with 30-min monitoring/fallback rule.
+   - Dispatch Issue #156 to Jules first with 30-min monitoring/fallback rule (or direct sub-agent if Jules fails).
