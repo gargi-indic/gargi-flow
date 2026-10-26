@@ -1,0 +1,7 @@
+apiVersion: policy/v1
+id: investment-allocation
+version: always-doubler
+decisions:
+  allocate:
+    rules:
+      - else: five_year_doubler

@@ -1,0 +1,26 @@
+apiVersion: graph/v1
+id: investment-allocation
+nodes:
+  - id: market_signal
+    type: passthrough
+  - id: allocate
+    type: decision
+    joinMode: any_of
+    config:
+      options: [daily_fund, five_year_doubler]
+      observes: [market_signal.output.signal]
+  - id: invest_daily
+    type: passthrough
+    joinMode: any_of
+  - id: invest_doubler
+    type: passthrough
+    joinMode: any_of
+  - id: payout
+    type: passthrough
+    joinMode: any_of
+edges:
+  - {from: market_signal, to: allocate}
+  - {from: allocate, to: invest_daily, condition: "upstream.output.choice == 'daily_fund'"}
+  - {from: allocate, to: invest_doubler, condition: "upstream.output.choice == 'five_year_doubler'"}
+  - {from: invest_daily, to: payout}
+  - {from: invest_doubler, to: payout}

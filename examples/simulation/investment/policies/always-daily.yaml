@@ -1,0 +1,7 @@
+apiVersion: policy/v1
+id: investment-allocation
+version: always-daily
+decisions:
+  allocate:
+    rules:
+      - else: daily_fund

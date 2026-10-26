@@ -1,0 +1,9 @@
+apiVersion: policy/v1
+id: investment-allocation
+version: adaptive-market
+decisions:
+  allocate:
+    rules:
+      - when: "market_signal.output.signal == 'favorable'"
+        choose: daily_fund
+      - else: five_year_doubler

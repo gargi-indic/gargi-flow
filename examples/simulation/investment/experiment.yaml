@@ -1,0 +1,20 @@
+apiVersion: experiment/v1
+model: ./sim.yaml
+worlds: [bull, moderate, crisis]
+policies:
+  files:
+    - policies/always-doubler.yaml
+    - policies/always-daily.yaml
+    - policies/adaptive.yaml
+evaluator: monte_carlo
+runs: 1000
+seed: 42
+top: 3
+reports:
+  - "regret"
+  - "tournament"
+  - "pareto:ruin_rate:min,terminal_wealth:max"
+world_prior:
+  bull: 0.35
+  moderate: 0.45
+  crisis: 0.20
