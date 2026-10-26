@@ -60,6 +60,10 @@ The **live** state is in issue **#67** (body tables + latest comments) and on `m
    - Step 5: **#164** Calibration from executions and outcomes (`agent/jules` session 8640701127747043618 hit 30m; fallback to subagent `Calibration Engineer`) — ✅ **merged** PR #226 (`b4917f6`), closed.
    - Step 6: **#165** Drift report: predicted vs observed per policy version (`agent/jules` session 7172897029081463624 hit 30m; fallback to subagent `Drift Engineer`) — ✅ **merged** PR #227 (`b486db9`), closed.
    - Step 7: **#166** Temporal fidelity check: gargi sim verify (`agent/jules` session 9870934261935063118 failed in planning; fallback to subagent `Fidelity Engineer`) — ✅ **merged** PR #228 (`cf39c41`), closed.
-   - Step 8: **#167** Canvas: Deploy mode and live drift overlay (`agent/jules`) — ⏳ **starting**.
+   - Step 8: **#167** Canvas: Deploy mode and live drift overlay (`agent/jules` session 10681215258302707813 hit 30m; fallback to subagent `Canvas Deploy Engineer`) — ✅ **merged** PR #229 (`852effa`), closed.
+
+### Epic #159 Complete!
+All 8 steps (#160–#167) merged and verified with passing CI checks. Epic #159 closed.
+
 2. **Next immediate action:**
-   - Dispatch Issue #167 to Jules with 30-min monitoring/fallback rule.
+   - Check backlog / conductor Issue #67 for subsequent simulation roadmap or final signoff.
