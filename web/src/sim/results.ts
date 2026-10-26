@@ -150,3 +150,25 @@ export function edgeMass(
 
   return result;
 }
+
+export type DriftMetric = {
+  predicted: number;
+  observed: number;
+  delta: number;
+  isDrift: boolean;
+};
+
+export type DriftDetails = {
+  observedSamples: number;
+  driftDetected: boolean;
+  failureRateDrift?: DriftMetric;
+  durationDrift?: DriftMetric;
+  outputDrift?: Record<string, DriftMetric>;
+};
+
+export type DriftReport = {
+  policyVersion: string;
+  driftDetected: boolean;
+  nodes: Record<string, DriftDetails>;
+  latents?: Record<string, DriftMetric>;
+};

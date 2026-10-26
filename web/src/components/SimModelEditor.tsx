@@ -19,11 +19,12 @@ import RunReplay from './RunReplay';
 import ResultsBar from './ResultsBar';
 import ParetoReportPanel from './ParetoReportPanel';
 import { choicesByDecision, edgeMass } from '../sim/results';
-import type { SimulationReport } from '../sim/results';
+import type { SimulationReport, DriftReport } from '../sim/results';
+import { DeployPanel } from './DeployPanel';
 
 type DocName = keyof SimDocs;
 
-const TABS: { name: DocName | 'experiment' | 'pareto' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay'; label: string }[] = [
+const TABS: { name: DocName | 'experiment' | 'pareto' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay' | 'deploy'; label: string }[] = [
   { name: 'graph', label: 'graph.yaml' },
   { name: 'sim', label: 'sim.yaml' },
   { name: 'experiment', label: 'Simulate' },
@@ -33,6 +34,7 @@ const TABS: { name: DocName | 'experiment' | 'pareto' | 'regret' | 'voi' | 'flip
   { name: 'flip', label: 'Flip Points' },
   { name: 'compare', label: 'Compare' },
   { name: 'replay', label: 'Replay' },
+  { name: 'deploy', label: 'Deploy' },
 ];
 
 type Props = {
@@ -41,7 +43,7 @@ type Props = {
 };
 
 export default function SimModelEditor({ docs, onChange }: Props) {
-  const [active, setActive] = useState<DocName | 'experiment' | 'pareto' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay'>('sim');
+  const [active, setActive] = useState<DocName | 'experiment' | 'pareto' | 'regret' | 'voi' | 'flip' | 'compare' | 'replay' | 'deploy'>('sim');
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -52,6 +54,7 @@ const [summaryJson, setSummaryJson] = useState<SimulationReport | null>(null);
   const [selectedWorld, setSelectedWorld] = useState<string>('base');
   const [experimentId, setExperimentId] = useState<string>('');
   const [nodeStatuses, setNodeStatuses] = useState<Record<string, string>>({});
+  const [driftReport, setDriftReport] = useState<DriftReport | null>(null);
 
   const handleValidate = async () => {
     setBusy(true);
@@ -244,6 +247,13 @@ const [summaryJson, setSummaryJson] = useState<SimulationReport | null>(null);
               <FlipPointPanel flipData={summaryJson?.reports?.flipPoints} />
             ) : active === 'compare' ? (
               <PolicyCompare policyTree={summaryJson?.reports?.policyTree} selectedWorld={selectedWorld} />
+            ) : active === 'deploy' ? (
+              <DeployPanel
+                modelId="loan-underwriting"
+                policyTree={summaryJson?.reports?.policyTree}
+                selectedWorld={selectedWorld}
+                onDriftReportLoaded={setDriftReport}
+              />
             ) : active === 'replay' ? (
               <RunReplay experimentId={experimentId} selectedWorld={selectedWorld} onNodeStatusesChange={setNodeStatuses} />
             ) : (
@@ -269,6 +279,7 @@ const [summaryJson, setSummaryJson] = useState<SimulationReport | null>(null);
                   edgeMass: edgeMass(summaryJson.reports?.pathHeatmap, selectedWorld),
                 } : undefined}
                 nodeStatuses={nodeStatuses}
+                driftReport={driftReport}
               />
             )}
             {parsedGraph instanceof Error && (
