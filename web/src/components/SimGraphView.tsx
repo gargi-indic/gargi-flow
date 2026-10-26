@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ReactFlow, Handle, Position, MarkerType, ReactFlowProvider } from '@xyflow/react';
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from '@xyflow/react';
 import dagre from 'dagre';
 import type { GraphNode, GraphEdge } from '../sim/graphDoc';
+import type { DriftReport, DriftDetails } from '../sim/results';
 
 const nodeWidth = 150;
 const nodeHeight = 60;
@@ -19,11 +20,96 @@ type PlainNodeData = {
   errors?: string[];
   results?: SimGraphResults;
   nodeStatuses?: Record<string, string>;
+  driftReport?: DriftReport;
+};
+
+const DriftBadge: React.FC<{ drift?: DriftDetails; nodeId: string; top?: string }> = ({ drift, nodeId, top = '-16px' }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+  if (!drift?.driftDetected) return null;
+
+  const tooltipTitle = `Drift Detected!\nSamples: ${drift.observedSamples}\nFailure rate drift: ${drift.failureRateDrift?.isDrift ? 'Yes' : 'No'}\nDuration drift: ${drift.durationDrift?.isDrift ? 'Yes' : 'No'}`;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 10,
+      }}
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+      onClick={(e) => {
+        e.stopPropagation();
+        setShowTooltip((v) => !v);
+      }}
+    >
+      <div
+        data-testid={`sim-node-drift-${nodeId}`}
+        title={tooltipTitle}
+        style={{
+          background: '#ff9800',
+          color: 'white',
+          borderRadius: '12px',
+          padding: '2px 8px',
+          fontSize: '10px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          zIndex: 10,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span>DRIFT</span>
+      </div>
+      {showTooltip && (
+        <div
+          data-testid={`sim-node-drift-tooltip-${nodeId}`}
+          style={{
+            position: 'absolute',
+            bottom: '22px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#263238',
+            color: '#eceff1',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            fontSize: '11px',
+            lineHeight: '1.4',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+            zIndex: 100,
+            textAlign: 'left',
+          }}
+        >
+          <div style={{ fontWeight: 'bold', borderBottom: '1px solid #455a64', paddingBottom: '3px', marginBottom: '4px', color: '#ffb74d' }}>
+            Drift Detected: {nodeId}
+          </div>
+          <div>Samples: {drift.observedSamples}</div>
+          {drift.failureRateDrift && (
+            <div style={{ color: drift.failureRateDrift.isDrift ? '#ff8a80' : '#b0bec5' }}>
+              Failure rate: pred {(drift.failureRateDrift.predicted * 100).toFixed(1)}% vs obs {(drift.failureRateDrift.observed * 100).toFixed(1)}% (Δ {(drift.failureRateDrift.delta * 100).toFixed(1)}%)
+            </div>
+          )}
+          {drift.durationDrift && (
+            <div style={{ color: drift.durationDrift.isDrift ? '#ff8a80' : '#b0bec5' }}>
+              Duration: pred {drift.durationDrift.predicted.toFixed(2)}s vs obs {drift.durationDrift.observed.toFixed(2)}s (Δ {drift.durationDrift.delta.toFixed(2)}s)
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const PlainNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
 
   const hasErrors = data.errors && data.errors.length > 0;
+  const drift = data.driftReport?.nodes?.[data.id];
   const status = data.nodeStatuses?.[data.id];
   let statusColor = '#ccc';
   if (status === 'NODE_STATUS_SUCCEEDED') statusColor = '#4caf50';
@@ -51,6 +137,7 @@ const PlainNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
       <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{data.id}</div>
       <div style={{ fontSize: '12px', color: '#666' }}>Type: {data.type}</div>
       <Handle type="source" position={Position.Bottom} />
+      <DriftBadge drift={drift} nodeId={data.id} top="-16px" />
       {hasErrors && (
         <div
           data-testid={`sim-node-error-${data.id}`}
@@ -82,6 +169,7 @@ const PlainNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
 const DecisionNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
 
   const hasErrors = data.errors && data.errors.length > 0;
+  const drift = data.driftReport?.nodes?.[data.id];
   const decisionChoices = data.results?.choices?.[data.id];
   const status = data.nodeStatuses?.[data.id];
   let statusColor = '#ccc';
@@ -103,6 +191,7 @@ const DecisionNode: React.FC<{ data: PlainNodeData }> = ({ data }) => {
         justifyContent: 'center',
       }}
     >
+      <DriftBadge drift={drift} nodeId={data.id} top="-22px" />
       <div
         style={{
           position: 'absolute',
@@ -165,16 +254,17 @@ const nodeTypes = {
   decision: DecisionNode,
 };
 
-interface SimGraphViewProps {
+export interface SimGraphViewProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
   nodeErrors: Record<string, string[]>;
   onNodeClick: (nodeId: string) => void;
   results?: SimGraphResults;
   nodeStatuses?: Record<string, string>;
+  driftReport?: DriftReport | null;
 }
 
-export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick, results, nodeStatuses }: SimGraphViewProps) {
+export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick, results, nodeStatuses, driftReport }: SimGraphViewProps) {
 
   const { flowNodes, flowEdges } = useMemo(() => {
     const dagreGraph = new dagre.graphlib.Graph();
@@ -185,7 +275,7 @@ export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick, re
       id: n.id,
       type: n.type === 'decision' ? 'decision' : 'plain',
       position: { x: 0, y: 0 },
-      data: { id: n.id, type: n.type, errors: nodeErrors[n.id] || [], results, nodeStatuses },
+      data: { id: n.id, type: n.type, errors: nodeErrors[n.id] || [], results, nodeStatuses, driftReport },
     }));
 
     const rfEdges: ReactFlowEdge[] = edges.map((e, i) => {
@@ -235,7 +325,7 @@ export default function SimGraphView({ nodes, edges, nodeErrors, onNodeClick, re
     });
 
     return { flowNodes: layoutedNodes, flowEdges: rfEdges };
-  }, [nodes, edges, nodeErrors, results, nodeStatuses]);
+  }, [nodes, edges, nodeErrors, results, nodeStatuses, driftReport]);
 
   return (
     <div style={{ flex: 1, width: '100%', height: '100%', background: '#fafafa' }}>

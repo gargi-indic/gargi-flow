@@ -13,9 +13,11 @@ const DISTRIBUTION_PARAMS: Record<string, string[]> = {
   exponential: ['rate'],
 };
 
+const EMPTY_PARAMS: Record<string, number> = {};
+
 export default function ArrivalsPanel({ text, arrivals, onChange }: Props) {
   const dist = arrivals.distribution || 'poisson';
-  const params = arrivals.parameters || {};
+  const params = arrivals.parameters || EMPTY_PARAMS;
   
   // Local state for params so user can type freely, sync on apply
   const [localParams, setLocalParams] = useState<Record<string, number>>(params);

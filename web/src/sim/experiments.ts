@@ -129,3 +129,34 @@ export async function getRun(id: string, index: number, world?: string, policy?:
   }
   return await response.json();
 }
+
+import type { DriftReport } from './results';
+
+export async function deployPolicy(
+  policyId: string,
+  mode: 'shadow' | 'live'
+): Promise<void> {
+  const res = await fetch(`${baseUrl}/v1/policies/${encodeURIComponent(policyId)}:deploy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ mode }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to deploy policy: ${res.statusText}`);
+  }
+}
+
+export async function getDriftReport(
+  modelId: string,
+  policyVersion: string
+): Promise<DriftReport> {
+  const query = new URLSearchParams({ policy_version: policyVersion });
+  const res = await fetch(`${baseUrl}/v1/models/${encodeURIComponent(modelId)}/drift?${query.toString()}`);
+  if (!res.ok) {
+    throw new Error(`Failed to get drift report: ${res.statusText}`);
+  }
+  const data = await res.json() as { report: DriftReport };
+  return data.report;
+}

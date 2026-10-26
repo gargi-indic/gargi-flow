@@ -48,8 +48,17 @@ export interface paths {
   "/v1/models/{id}": {
     get: operations["SimulationService_GetModel"];
   };
+  "/v1/models/{modelId}/drift": {
+    get: operations["SimulationService_GetDriftReport"];
+  };
   "/v1/models:validate": {
     post: operations["SimulationService_ValidateModel"];
+  };
+  "/v1/outcomes": {
+    post: operations["SimulationService_IngestOutcome"];
+  };
+  "/v1/policies/{id}:deploy": {
+    post: operations["SimulationService_DeployPolicy"];
   };
 }
 
@@ -65,6 +74,12 @@ export interface definitions {
   };
   /** @description CancelExperimentRequest cancels a queued or running experiment. */
   SimulationServiceCancelExperimentBody: { [key: string]: unknown };
+  /** @description DeployPolicyRequest sets the deployment mode of a policy version. */
+  SimulationServiceDeployPolicyBody: {
+    version?: string;
+    /** @description "shadow" or "live". */
+    mode?: string;
+  };
   protobufAny: {
     "@type"?: string;
   } & { [key: string]: unknown };
@@ -110,6 +125,12 @@ export interface definitions {
   v1CreateExperimentResponse: {
     id?: string;
     status?: definitions["v1ExperimentStatus"];
+  };
+  /** @description DeployPolicyResponse returns the updated deployment configuration. */
+  v1DeployPolicyResponse: {
+    id?: string;
+    version?: string;
+    mode?: string;
   };
   /**
    * @description ExecutionStatus represents the lifecycle state of a graph execution.
@@ -198,6 +219,12 @@ export interface definitions {
     | "EXPERIMENT_STATUS_SUCCEEDED"
     | "EXPERIMENT_STATUS_FAILED"
     | "EXPERIMENT_STATUS_CANCELLED";
+  /** @description GetDriftReportResponse carries the drift report. */
+  v1GetDriftReportResponse: {
+    modelId?: string;
+    policyVersion?: string;
+    report?: unknown;
+  };
   /** @description GetExecutionResponse contains the full execution snapshot. */
   v1GetExecutionResponse: {
     executionId?: string;
@@ -225,10 +252,6 @@ export interface definitions {
     executionId?: string;
     nodeState?: definitions["v1NodeStateDetail"];
   };
-  /**
-   * @description GetReportResponse carries the report as JSON. Over REST the body is the
-   * report itself.
-   */
   v1GetReportResponse: {
     id?: string;
     kind?: string;
@@ -253,6 +276,15 @@ export interface definitions {
     events?: definitions["v1StreamExecutionUpdatesResponse"][];
     record?: definitions["v1RunRecord"];
   };
+  /** @description IngestOutcomeRequest reports real-world outcomes for an execution. */
+  v1IngestOutcomeRequest: {
+    executionId?: string;
+    latents?: { [key: string]: unknown };
+    /** Format: date-time */
+    observedAt?: string;
+  };
+  /** @description IngestOutcomeResponse is the response to IngestOutcome. */
+  v1IngestOutcomeResponse: { [key: string]: unknown };
   /** @description ListExecutionsResponse returns a list of execution summaries. */
   v1ListExecutionsResponse: {
     executions?: definitions["v1ExecutionSummary"][];
@@ -776,6 +808,26 @@ export interface operations {
       };
     };
   };
+  SimulationService_GetDriftReport: {
+    parameters: {
+      path: {
+        modelId: string;
+      };
+      query: {
+        policyVersion?: string;
+      };
+    };
+    responses: {
+      /** A successful response. */
+      200: {
+        schema: definitions["v1GetDriftReportResponse"];
+      };
+      /** An unexpected error response. */
+      default: {
+        schema: definitions["rpcStatus"];
+      };
+    };
+  };
   SimulationService_ValidateModel: {
     parameters: {
       body: {
@@ -787,6 +839,44 @@ export interface operations {
       /** A successful response. */
       200: {
         schema: definitions["v1ValidateModelResponse"];
+      };
+      /** An unexpected error response. */
+      default: {
+        schema: definitions["rpcStatus"];
+      };
+    };
+  };
+  SimulationService_IngestOutcome: {
+    parameters: {
+      body: {
+        /** IngestOutcomeRequest reports real-world outcomes for an execution. */
+        body: definitions["v1IngestOutcomeRequest"];
+      };
+    };
+    responses: {
+      /** A successful response. */
+      200: {
+        schema: definitions["v1IngestOutcomeResponse"];
+      };
+      /** An unexpected error response. */
+      default: {
+        schema: definitions["rpcStatus"];
+      };
+    };
+  };
+  SimulationService_DeployPolicy: {
+    parameters: {
+      path: {
+        id: string;
+      };
+      body: {
+        body: definitions["SimulationServiceDeployPolicyBody"];
+      };
+    };
+    responses: {
+      /** A successful response. */
+      200: {
+        schema: definitions["v1DeployPolicyResponse"];
       };
       /** An unexpected error response. */
       default: {
